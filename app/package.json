@@ -1,0 +1,28 @@
+{
+  "name": "poe2-build-advisor-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Windows desktop foundation for PoE 2 Build Advisor.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:check": "tauri info",
+    "tauri:build": "tauri build"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "@types/node": "^22.13.10",
+    "@types/react": "^18.2.80",
+    "@types/react-dom": "^18.2.18",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.1"
+  }
+}

@@ -37,3 +37,21 @@ A Windows application that helps choose an effective **Path of Exile 2** build, 
 - File names, classes, functions, variables, and technical keys are written in English.
 - Recommendations are tied to the game version (patch), because the “strongest” build changes after balance updates.
 - The first release uses a transparent ranking algorithm based on verified data.
+
+## 🔧 Запуск Windows desktop-версії з Tauri (PoE 2 Build Advisor Foundation)
+
+- Перейдіть у папку програми: `cd app`
+- Встановіть залежності: `npm install`
+- Запустіть білд frontend: `npm run build`
+- Перевірте Tauri-конфігурацію: `npm run tauri:check`
+- Зберіть застосунок: `npm run tauri:build`
+- Під час розробки можна запускати `npm run dev` для Vite або `npm run tauri` для взаємодії через Tauri CLI.
+
+## 🔧 Running the PoE 2 Build Advisor desktop foundation (Tauri)
+
+- Go to the app folder: `cd app`
+- Install dependencies: `npm install`
+- Build the frontend: `npm run build`
+- Validate the Tauri configuration: `npm run tauri:check`
+- Build the desktop app: `npm run tauri:build`
+- During development, use `npm run dev` for Vite, or `npm run tauri` to run Tauri CLI commands.
