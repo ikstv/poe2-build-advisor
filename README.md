@@ -47,6 +47,12 @@ A Windows application that helps choose an effective **Path of Exile 2** build, 
 - Зберіть застосунок: `npm run tauri:build`
 - Під час розробки можна запускати `npm run dev` для Vite або `npm run tauri` для взаємодії через Tauri CLI.
 
+### Мінімальні залежності для Windows
+
+- Rust stable
+- Microsoft C++ Build Tools з компонентом **Desktop development with C++**
+- Microsoft Edge WebView2
+
 ## 🔧 Running the PoE 2 Build Advisor desktop foundation (Tauri)
 
 - Go to the app folder: `cd app`
@@ -55,3 +61,9 @@ A Windows application that helps choose an effective **Path of Exile 2** build, 
 - Validate the Tauri configuration: `npm run tauri:check`
 - Build the desktop app: `npm run tauri:build`
 - During development, use `npm run dev` for Vite, or `npm run tauri` to run Tauri CLI commands.
+
+### Windows dependencies
+
+- Rust stable
+- Microsoft C++ Build Tools with **Desktop development with C++** component
+- Microsoft Edge WebView2

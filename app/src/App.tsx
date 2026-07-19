@@ -55,7 +55,12 @@ export function App() {
           ))}
         </section>
 
-        <button type="button" className="cta">
+        <button
+          type="button"
+          className="cta"
+          disabled
+          aria-label="Build search is not implemented yet"
+        >
           Find a build
         </button>
       </main>
