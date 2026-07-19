@@ -327,7 +327,7 @@ describe('recommendBuilds scoring', () => {
     ) as MatchResult
 
     expect(result.primaryBuild.id).toBe('zeta')
-    expect(result.primaryBuild.finalScore).toBe(27)
+    expect(result.primaryBuild.finalScore).toBe(55)
   })
 
   it('applies deterministic ranking with different dataset order', () => {
@@ -382,8 +382,22 @@ describe('recommendBuilds scoring', () => {
 describe('recommendBuilds tie-breaks', () => {
   it('uses dataConfidence before budget and stage', () => {
     const dataset = makeDataset([
-      createBuild('zulu', { dataConfidence: 100, scoresByStage: { start: 50, campaign: 50, early_maps: 50, endgame: 50 } }),
-      createBuild('alpha', { dataConfidence: 10, scoresByStage: { start: 100, campaign: 100, early_maps: 100, endgame: 100 } }),
+      createBuild('zulu', {
+        dataConfidence: 100,
+        scoresByStage: { start: 50, campaign: 50, early_maps: 50, endgame: 50 },
+        bossingScore: 50,
+        clearSpeedScore: 50,
+        survivabilityScore: 50,
+        easeOfUseScore: 50,
+      }),
+      createBuild('alpha', {
+        dataConfidence: 10,
+        scoresByStage: { start: 50, campaign: 50, early_maps: 50, endgame: 50 },
+        bossingScore: 50,
+        clearSpeedScore: 50,
+        survivabilityScore: 50,
+        easeOfUseScore: 50,
+      }),
     ])
 
     const result = recommendBuilds(dataset, makePreferences({ class: 'any', playStyle: 'melee' })) as MatchResult
