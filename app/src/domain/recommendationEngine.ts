@@ -145,6 +145,9 @@ const isAllowedValue = <T extends string>(value: unknown, allowed: readonly T[])
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === 'string' && value.trim() !== ''
 
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
 const isSupportedScore = (value: unknown, context: string): number => {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 100) {
     throw new Error(context)
@@ -170,9 +173,37 @@ const isValidIsoDate = (value: unknown, context: string): void => {
     throw new Error(context)
   }
 
-  const isoRegex =
+  const isoDateOnlyRegex = /^(\d{4})-(\d{2})-(\d{2})$/
+  const isoDateTimeRegex =
     /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?(Z|[+-](\d{2}):(\d{2}))$/
-  const match = value.match(isoRegex)
+
+  const dateOnlyMatch = value.match(isoDateOnlyRegex)
+  if (dateOnlyMatch !== null) {
+    const year = Number(dateOnlyMatch[1])
+    const month = Number(dateOnlyMatch[2])
+    const day = Number(dateOnlyMatch[3])
+
+    if (month < 1 || month > 12 || day < 1 || day > 31) {
+      throw new Error(context)
+    }
+
+    const candidateUtc = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
+    if (
+      candidateUtc.getUTCFullYear() !== year ||
+      candidateUtc.getUTCMonth() !== month - 1 ||
+      candidateUtc.getUTCDate() !== day
+    ) {
+      throw new Error(context)
+    }
+
+    const parsed = new Date(`${value}T00:00:00Z`)
+    if (parsed.getTime() !== candidateUtc.getTime()) {
+      throw new Error(context)
+    }
+    return
+  }
+
+  const match = value.match(isoDateTimeRegex)
   if (match === null) {
     throw new Error(context)
   }
@@ -227,6 +258,39 @@ const isValidIsoDate = (value: unknown, context: string): void => {
   }
 }
 
+const getDecisionReason = (
+  primary: BuildWithScore,
+  alternate: BuildWithScore | undefined,
+  preferences: UserPreferences,
+  compatibleCount: number,
+): string => {
+  const roundedScore = Math.round(primary.finalScore * 10 + Number.EPSILON) / 10
+
+  if (!alternate) {
+    return `Primary build ${primary.id} selected because it is the only compatible build for goal=${preferences.goal}, stage=${preferences.stage}, score=${roundedScore}. compatibleBuilds=${compatibleCount}`
+  }
+
+  if (primary.finalScore > alternate.finalScore) {
+    return `Primary build ${primary.id} was selected over ${alternate.id} by higher finalScore (${primary.finalScore} > ${alternate.finalScore}) for goal=${preferences.goal}, stage=${preferences.stage}. compatibleBuilds=${compatibleCount}`
+  }
+
+  if (primary.dataConfidence > alternate.dataConfidence) {
+    return `Primary build ${primary.id} was selected over ${alternate.id} by higher dataConfidence (${primary.dataConfidence} > ${alternate.dataConfidence}) while finalScore is tied for goal=${preferences.goal}, stage=${preferences.stage}. compatibleBuilds=${compatibleCount}`
+  }
+
+  if (budgetOrder[primary.minimumBudget] < budgetOrder[alternate.minimumBudget]) {
+    return `Primary build ${primary.id} was selected over ${alternate.id} by lower minimumBudget (${primary.minimumBudget} < ${alternate.minimumBudget}) at equal finalScore and dataConfidence for goal=${preferences.goal}, stage=${preferences.stage}. compatibleBuilds=${compatibleCount}`
+  }
+
+  const primaryReviewedAt = new Date(primary.lastReviewedAt).getTime()
+  const alternateReviewedAt = new Date(alternate.lastReviewedAt).getTime()
+  if (primaryReviewedAt > alternateReviewedAt) {
+    return `Primary build ${primary.id} was selected over ${alternate.id} by newer lastReviewedAt (${primary.lastReviewedAt} > ${alternate.lastReviewedAt}) while score, dataConfidence and minimumBudget are equal for goal=${preferences.goal}, stage=${preferences.stage}. compatibleBuilds=${compatibleCount}`
+  }
+
+  return `Primary build ${primary.id} was selected over ${alternate.id} by stable id tie-break (${primary.id} < ${alternate.id}) for goal=${preferences.goal}, stage=${preferences.stage}. compatibleBuilds=${compatibleCount}`
+}
+
 export const validateBuildDataset = (dataset: BuildDataset): void => {
   if (!dataset || typeof dataset !== 'object') {
     throw new Error('Dataset must be an object')
@@ -258,13 +322,22 @@ export const validateBuildDataset = (dataset: BuildDataset): void => {
   const ids = new Set<string>()
 
   for (const build of dataset.builds) {
-    if (typeof build.id !== 'string' || build.id.trim() === '') {
+    if (!isObject(build)) {
+      throw new Error('Each build must be a non-null object')
+    }
+
+    if (!isNonEmptyString(build.id)) {
       throw new Error('Each build must have a non-empty string id')
     }
+
     if (ids.has(build.id)) {
       throw new Error(`Duplicate build id detected: ${build.id}`)
     }
     ids.add(build.id)
+
+    if (typeof build.ascendancy !== 'string' && build.ascendancy !== null) {
+      throw new Error(`Build ascendancy must be a string or null: ${build.id}`)
+    }
 
     if (typeof build.patch !== 'string' || build.patch.trim() === '') {
       throw new Error(`Build patch must be a non-empty string: ${build.id}`)
@@ -290,11 +363,19 @@ export const validateBuildDataset = (dataset: BuildDataset): void => {
       throw new Error(`Build sources must be an array of non-empty strings: ${build.id}`)
     }
 
-    if (!Array.isArray(build.playStyles) || build.playStyles.some((style) => !isAllowedValue(style, validPlayStyles))) {
+    if (!Array.isArray(build.playStyles) || build.playStyles.length === 0) {
+      throw new Error(`Build playStyles must be a non-empty array: ${build.id}`)
+    }
+
+    if (build.playStyles.some((style) => !isAllowedValue(style, validPlayStyles))) {
       throw new Error(`Build playStyles must contain only valid values: ${build.id}`)
     }
 
-    if (!Array.isArray(build.modes) || build.modes.some((mode) => !isAllowedValue(mode, validModes))) {
+    if (!Array.isArray(build.modes) || build.modes.length === 0) {
+      throw new Error(`Build modes must be a non-empty array: ${build.id}`)
+    }
+
+    if (build.modes.some((mode) => !isAllowedValue(mode, validModes))) {
       throw new Error(`Build modes must contain only valid values: ${build.id}`)
     }
 
@@ -512,6 +593,7 @@ export const recommendBuilds = (
   const compatibleCount = scoredBuilds.length
 
   const roundedPrimaryScore = roundToUiScore(primaryBuild.finalScore)
+  const decisionReason = getDecisionReason(primaryBuild, displayedAlternatives[0], preferences, compatibleCount)
 
   return {
     type: 'match',
@@ -520,7 +602,7 @@ export const recommendBuilds = (
       finalScore: roundedPrimaryScore,
     },
     score: roundedPrimaryScore,
-    reason: `Winner build: ${primaryBuild.name} (${primaryBuild.id}); goal=${preferences.goal}; stage=${preferences.stage}; finalScore=${roundedPrimaryScore}; compatibleBuilds=${compatibleCount}`,
+    reason: decisionReason,
     path: primaryBuild.path,
     alternatives: displayedAlternatives,
     patch: dataset.targetPatch,

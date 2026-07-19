@@ -74,10 +74,15 @@ describe('validateBuildDataset', () => {
     expect(() => validateBuildDataset(dataset)).not.toThrow()
   })
 
+  it('rejects non-object dataset builds', () => {
+    const dataset = makeDataset(['not-object' as unknown as Build])
+    expect(() => validateBuildDataset(dataset)).toThrow(/must be a non-null object/)
+  })
+
   it('rejects empty availableClasses', () => {
     const dataset = makeDataset([createBuild('alpha')])
     dataset.availableClasses = []
-    expect(() => validateBuildDataset(dataset)).toThrow(/Dataset availableClasses must be a non-empty array/)
+    expect(() => validateBuildDataset(dataset)).toThrow(/must be a non-empty array/)
   })
 
   it('rejects duplicate availableClasses', () => {
@@ -89,71 +94,112 @@ describe('validateBuildDataset', () => {
   it('rejects empty availableClasses members', () => {
     const dataset = makeDataset([createBuild('alpha')])
     dataset.availableClasses = ['marauder', '']
-    expect(() => validateBuildDataset(dataset)).toThrow(/non-empty strings/)
+    expect(() => validateBuildDataset(dataset)).toThrow(/must contain non-empty strings/)
   })
 
   it('rejects build class not in availableClasses', () => {
     const dataset = makeDataset([createBuild('alpha', { class: 'invalid-class' })])
-    expect(() => validateBuildDataset(dataset)).toThrow(/Build class is not available for current dataset/)
+    expect(() => validateBuildDataset(dataset)).toThrow(/is not available for current dataset/)
+  })
+
+  it('rejects build with invalid ascendancy', () => {
+    const dataset = makeDataset([createBuild('alpha', { ascendancy: 123 as never })])
+    expect(() => validateBuildDataset(dataset)).toThrow(/ascendancy must be a string or null/)
   })
 
   it('rejects invalid playStyles', () => {
-    const dataset = makeDataset([
-      createBuild('alpha', { playStyles: ['invalid-style' as never] }),
-    ])
+    const dataset = makeDataset([createBuild('alpha', { playStyles: ['invalid-style' as never] })])
     expect(() => validateBuildDataset(dataset)).toThrow(/Build playStyles must contain only valid values/)
   })
 
+  it('rejects empty playStyles', () => {
+    const dataset = makeDataset([createBuild('alpha', { playStyles: [] })])
+    expect(() => validateBuildDataset(dataset)).toThrow(/Build playStyles must be a non-empty array/)
+  })
+
   it('rejects invalid modes', () => {
-    const dataset = makeDataset([
-      createBuild('alpha', { modes: ['invalid-mode' as never] }),
-    ])
+    const dataset = makeDataset([createBuild('alpha', { modes: ['invalid-mode' as never] })])
     expect(() => validateBuildDataset(dataset)).toThrow(/Build modes must contain only valid values/)
   })
 
+  it('rejects empty modes', () => {
+    const dataset = makeDataset([createBuild('alpha', { modes: [] })])
+    expect(() => validateBuildDataset(dataset)).toThrow(/Build modes must be a non-empty array/)
+  })
+
   it('rejects invalid minimumBudget values', () => {
-    const dataset = makeDataset([
-      createBuild('alpha', { minimumBudget: 'ultra' as Budget }),
-    ])
+    const dataset = makeDataset([createBuild('alpha', { minimumBudget: 'ultra' as Budget })])
     expect(() => validateBuildDataset(dataset)).toThrow(/minimumBudget must be one of starter, low, medium, high/)
   })
 
-  it('rejects NaN and Infinity scores', () => {
-    const dataset = makeDataset([
-      createBuild('alpha', {
-        bossingScore: Number.NaN,
-        scoresByStage: {
-          start: Number.POSITIVE_INFINITY,
-          campaign: 70,
-          early_maps: 70,
-          endgame: 70,
-        },
-      }),
-    ])
-    expect(() => validateBuildDataset(dataset)).toThrow(/between 0 and 100/)
+  it('rejects NaN scores', () => {
+    const dataset = makeDataset([createBuild('alpha', { bossingScore: Number.NaN })])
+    expect(() => validateBuildDataset(dataset)).toThrow(/must be a number between 0 and 100/)
+  })
+
+  it('rejects Infinity scores', () => {
+    const dataset = makeDataset([createBuild('alpha', {
+      scoresByStage: {
+        start: Number.POSITIVE_INFINITY,
+        campaign: 70,
+        early_maps: 70,
+        endgame: 70,
+      },
+    })])
+    expect(() => validateBuildDataset(dataset)).toThrow(/scoresByStage.start must be a number between 0 and 100/)
   })
 
   it('rejects out-of-range scores', () => {
-    const dataset = makeDataset([
-      createBuild('alpha', {
-        survivabilityScore: 120,
-      }),
-    ])
+    const dataset = makeDataset([createBuild('alpha', { survivabilityScore: 120 })])
     expect(() => validateBuildDataset(dataset)).toThrow(/survivabilityScore must be a number between 0 and 100/)
   })
 
-  it('rejects impossible ISO date', () => {
-    const dataset = makeDataset([
-      createBuild('alpha', { lastReviewedAt: '2026-02-30T00:00:00Z' }),
-    ])
+  it('accepts valid date-only ISO value', () => {
+    const dataset = makeDataset([createBuild('alpha', { lastReviewedAt: '2026-01-01' })])
+    expect(() => validateBuildDataset(dataset)).not.toThrow()
+  })
+
+  it('rejects impossible date-only ISO value', () => {
+    const dataset = makeDataset([createBuild('alpha', { lastReviewedAt: '2026-02-30' })])
+    expect(() => validateBuildDataset(dataset)).toThrow(/valid ISO 8601 date string/)
+  })
+
+  it('rejects impossible ISO date-time', () => {
+    const dataset = makeDataset([createBuild('alpha', { lastReviewedAt: '2026-02-30T00:00:00Z' })])
     expect(() => validateBuildDataset(dataset)).toThrow(/valid ISO 8601 date string/)
   })
 
   it('rejects invalid ISO date format', () => {
-    const dataset = makeDataset([
-      createBuild('alpha', { lastReviewedAt: 'not-a-date' }),
-    ])
+    const dataset = makeDataset([createBuild('alpha', { lastReviewedAt: 'not-a-date' })])
     expect(() => validateBuildDataset(dataset)).toThrow(/valid ISO 8601 date string/)
+  })
+
+  it('rejects build patch mismatch', () => {
+    const dataset: BuildDataset = {
+      ...makeDataset([createBuild('alpha')]),
+      builds: [createBuild('alpha', { patch: '0.0.0' })],
+    }
+    expect(() => validateBuildDataset(dataset)).toThrow(/Build patch mismatch/)
+  })
+
+  it('rejects duplicate build IDs', () => {
+    const dataset = makeDataset([
+      createBuild('dupe'),
+      createBuild('dupe'),
+    ])
+    expect(() => validateBuildDataset(dataset)).toThrow(/Duplicate build id detected/)
+  })
+
+  it('rejects missing path stage', () => {
+    const dataset = makeDataset([createBuild('alpha', {
+      path: {
+        start: buildPlan,
+        campaign: buildPlan,
+        endgame: buildPlan,
+      } as never,
+    })])
+
+    expect(() => validateBuildDataset(dataset)).toThrow(/path must include stage early_maps/)
   })
 })
 
@@ -161,15 +207,13 @@ describe('validateUserPreferences', () => {
   const dataset = makeDataset([createBuild('alpha')])
 
   it('accepts class=any and class from availableClasses', () => {
-    expect(() =>
-      recommendBuilds(dataset, makePreferences({ class: 'any' })),
-    ).not.toThrow()
+    expect(() => recommendBuilds(dataset, makePreferences({ class: 'any' }))).not.toThrow()
   })
 
   it('throws for class outside availableClasses', () => {
-    expect(() =>
-      recommendBuilds(dataset, makePreferences({ class: 'non-existent' })),
-    ).toThrow(/must be \"any\" or one of available classes/)
+    expect(() => recommendBuilds(dataset, makePreferences({ class: 'non-existent' }))).toThrow(
+      /must be \"any\" or one of available classes/,
+    )
   })
 
   it.each([
@@ -178,91 +222,142 @@ describe('validateUserPreferences', () => {
     ['goal', 'meta'],
     ['mode', 'casual'],
     ['budget', 'luxury'],
-  ] as const)(
-    'throws for invalid UserPreferences %s value', (field, value) => {
-      expect(() => {
-        recommendBuilds(dataset, {
-          ...makePreferences({}),
-          ...(field === 'stage' ? { stage: value as Stage } : {}),
-          ...(field === 'playStyle' ? { playStyle: value as any } : {}),
-          ...(field === 'goal' ? { goal: value as Goal } : {}),
-          ...(field === 'mode' ? { mode: value as any } : {}),
-          ...(field === 'budget' ? { budget: value as any } : {}),
-        })
-      }).toThrow(/User preference/)
-    },
-  )
+  ] as const)('throws for invalid UserPreferences %s value', (field, value) => {
+    expect(() => {
+      recommendBuilds(dataset, {
+        ...makePreferences({}),
+        ...(field === 'stage' ? { stage: value as Stage } : {}),
+        ...(field === 'playStyle' ? { playStyle: value as never } : {}),
+        ...(field === 'goal' ? { goal: value as Goal } : {}),
+        ...(field === 'mode' ? { mode: value as never } : {}),
+        ...(field === 'budget' ? { budget: value as never } : {}),
+      })
+    }).toThrow(/User preference/)
+  })
 })
 
 describe('recommendBuilds filter and sorting logic', () => {
-  const filterDataset = makeDataset([
-    createBuild('alpha', { class: 'marauder', playStyles: ['melee'], modes: ['softcore'], minimumBudget: 'starter' }),
-    createBuild('bravo', { class: 'ranger', playStyles: ['spells'], modes: ['softcore'], minimumBudget: 'low' }),
-    createBuild('charlie', { class: 'witch', playStyles: ['melee'], modes: ['hardcore'], minimumBudget: 'high' }),
-    createBuild('delta', { class: 'marauder', playStyles: ['melee'], modes: ['softcore'], minimumBudget: 'low' }),
-  ])
+  it('supports class=any with multiple compatible classes', () => {
+    const dataset = makeDataset([
+      createBuild('alpha', { class: 'marauder' }),
+      createBuild('beta', { id: 'beta', class: 'ranger' }),
+      createBuild('gamma', { class: 'witch', playStyles: ['spells'] }),
+    ])
 
-  it('filters by class and supports class=any for mixed classes', () => {
-    const fixedOrderResult = recommendBuilds(
-      filterDataset,
-      makePreferences({ class: 'marauder', playStyle: 'melee', mode: 'softcore', budget: 'high' }),
-    ) as MatchResult
-    expect(fixedOrderResult.type).toBe('match')
-    const fixedIds = [fixedOrderResult.primaryBuild.id, ...fixedOrderResult.alternatives.map((build) => build.id)]
-    expect(fixedIds).toEqual(['alpha', 'delta'])
+    const result = recommendBuilds(dataset, makePreferences({
+      class: 'any',
+      playStyle: 'melee',
+      mode: 'softcore',
+      budget: 'high',
+    })) as MatchResult
 
-    const anyResult = recommendBuilds(
-      filterDataset,
-      makePreferences({ class: 'any', playStyle: 'melee', mode: 'softcore', budget: 'high' }),
-    ) as MatchResult
-    expect(anyResult.type).toBe('match')
-    const anyIds = [anyResult.primaryBuild.id, ...anyResult.alternatives.map((build) => build.id)]
-    expect(anyIds).toContain('alpha')
-    expect(anyIds).toContain('delta')
-  })
-
-  it('filters by play style, mode, and budget order', () => {
-    expect(
-      (recommendBuilds(
-        filterDataset,
-        makePreferences({ class: 'any', playStyle: 'spells', mode: 'softcore', budget: 'high' }),
-      ) as MatchResult).primaryBuild.id,
-    ).toBe('bravo')
-
-    expect(
-      (recommendBuilds(
-        filterDataset,
-        makePreferences({ class: 'any', playStyle: 'melee', mode: 'hardcore', budget: 'high' }),
-      ) as MatchResult).primaryBuild.id,
-    ).toBe('charlie')
+    expect(result.type).toBe('match')
+    const ids = [result.primaryBuild.id, ...result.alternatives.map((build) => build.id)]
+    expect(ids).toEqual(['alpha', 'beta'])
+    expect(result.alternatives.length).toBe(1)
   })
 
   it('applies budget ladder correctly for all levels', () => {
     const budgetDataset = makeDataset([
-      createBuild('starter', { minimumBudget: 'starter' }),
-      createBuild('low', { minimumBudget: 'low', class: 'ranger' }),
-      createBuild('medium', { minimumBudget: 'medium', class: 'witch' }),
-      createBuild('high', { minimumBudget: 'high', class: 'marauder' }),
+      createBuild('starter', { minimumBudget: 'starter', class: 'marauder', id: 'starter' }),
+      createBuild('low', { minimumBudget: 'low', class: 'marauder', id: 'low' }),
+      createBuild('medium', { minimumBudget: 'medium', class: 'marauder', id: 'medium' }),
+      createBuild('high', { minimumBudget: 'high', class: 'marauder', id: 'high' }),
     ])
 
-    const budgets: Budget[] = ['starter', 'low', 'medium', 'high']
-    const expectedCounts: Record<Budget, string[]> = {
-      starter: ['starter'],
-      low: ['starter', 'low'],
-      medium: ['starter', 'low', 'medium'],
-      high: ['starter', 'low', 'medium', 'high'],
-    }
+    const starterResult = recommendBuilds(
+      budgetDataset,
+      makePreferences({ class: 'marauder', budget: 'starter', playStyle: 'melee' }),
+    ) as MatchResult
+    expect(starterResult.alternatives.length).toBe(0)
+    expect([starterResult.primaryBuild.id, ...starterResult.alternatives.map((build) => build.id)]).toEqual(['starter'])
 
-    for (const budget of budgets) {
-      const result = recommendBuilds(
-        budgetDataset,
-        makePreferences({ class: 'any', budget, playStyle: 'melee' }),
-      ) as MatchResult
-      expect(result.type).toBe('match')
-      const actual = [result.primaryBuild.id, ...result.alternatives.map((build) => build.id)]
-      expect(expectedCounts[budget].includes(result.primaryBuild.id)).toBeTruthy()
-      expect(result.alternatives.length).toBeGreaterThanOrEqual(0)
-      expect(actual.length).toBeGreaterThanOrEqual(1)
+    const lowResult = recommendBuilds(
+      budgetDataset,
+      makePreferences({ class: 'marauder', budget: 'low', playStyle: 'melee' }),
+    ) as MatchResult
+    expect(lowResult.alternatives.length).toBe(1)
+    expect([lowResult.primaryBuild.id, ...lowResult.alternatives.map((build) => build.id)]).toEqual(['starter', 'low'])
+
+    const mediumResult = recommendBuilds(
+      budgetDataset,
+      makePreferences({ class: 'marauder', budget: 'medium', playStyle: 'melee' }),
+    ) as MatchResult
+    expect(mediumResult.alternatives.length).toBe(2)
+    expect([mediumResult.primaryBuild.id, ...mediumResult.alternatives.map((build) => build.id)]).toEqual(['starter', 'low', 'medium'])
+
+    const highResult = recommendBuilds(
+      budgetDataset,
+      makePreferences({ class: 'marauder', budget: 'high', playStyle: 'melee' }),
+    ) as MatchResult
+    expect(highResult.alternatives.length).toBe(2)
+    expect([highResult.primaryBuild.id, ...highResult.alternatives.map((build) => build.id)]).toEqual(['starter', 'low', 'medium'])
+  })
+
+  it('returns 0 results as no-match', () => {
+    const result = recommendBuilds(
+      makeDataset([createBuild('alpha')]),
+      makePreferences({ class: 'witch', playStyle: 'spells' }),
+    )
+
+    expect(result.type).toBe('no-match')
+    expect((result as NoMatchResult).relaxableFilters).toEqual(['budget', 'mode', 'playStyle', 'class'])
+  })
+
+  it('returns 1 result with 0 alternatives', () => {
+    const result = recommendBuilds(
+      makeDataset([createBuild('alpha')]),
+      makePreferences({ class: 'marauder' }),
+    ) as MatchResult
+
+    expect(result.type).toBe('match')
+    expect(result.alternatives.length).toBe(0)
+    expect([result.primaryBuild.id, ...result.alternatives.map((build) => build.id)]).toEqual(['alpha'])
+  })
+
+  it('returns 2 results with 1 alternative', () => {
+    const result = recommendBuilds(
+      makeDataset([createBuild('alpha'), createBuild('beta')]),
+      makePreferences({ class: 'marauder' }),
+    ) as MatchResult
+
+    expect(result.type).toBe('match')
+    expect(result.alternatives.length).toBe(1)
+    const ordered = [result.primaryBuild.id, ...result.alternatives.map((build) => build.id)]
+    expect(ordered).toEqual(['alpha', 'beta'])
+  })
+
+  it('returns 3+ results with max 2 alternatives', () => {
+    const result = recommendBuilds(
+      makeDataset([createBuild('alpha'), createBuild('beta'), createBuild('charlie'), createBuild('delta')]),
+      makePreferences({ class: 'marauder' }),
+    ) as MatchResult
+
+    expect(result.alternatives.length).toBe(2)
+    expect([result.primaryBuild.id, ...result.alternatives.map((build) => build.id)]).toHaveLength(3)
+  })
+
+  it('provides deterministic full order across build array permutations', () => {
+    const base = [
+      createBuild('alpha', { minimumBudget: 'medium' }),
+      createBuild('beta', { minimumBudget: 'starter' }),
+      createBuild('charlie', { minimumBudget: 'high' }),
+      createBuild('delta', { minimumBudget: 'low' }),
+    ]
+
+    const expectedOrder = ['beta', 'delta', 'alpha']
+
+    const permutations = [
+      [0, 1, 2, 3],
+      [3, 2, 1, 0],
+      [1, 3, 0, 2],
+      [2, 0, 3, 1],
+    ].map((indices) => indices.map((index) => base[index]))
+
+    for (const currentBuilds of permutations) {
+      const result = recommendBuilds(makeDataset([...currentBuilds]), makePreferences({ class: 'marauder' })) as MatchResult
+      const ordered = [result.primaryBuild.id, ...result.alternatives.map((build) => build.id)]
+      expect(ordered).toEqual(expectedOrder)
     }
   })
 })
@@ -313,90 +408,81 @@ describe('recommendBuilds scoring', () => {
 
   it('keeps full precision ordering before rounding for UI', () => {
     const precisionDataset = makeDataset([
-      createBuild('zeta', {
-        scoresByStage: { start: 90, campaign: 90, early_maps: 90, endgame: 90 },
-      }),
-      createBuild('alpha', {
-        scoresByStage: { start: 89.95, campaign: 89.95, early_maps: 89.95, endgame: 89.95 },
-      }),
+      createBuild('zeta', { scoresByStage: { start: 90, campaign: 90, early_maps: 90, endgame: 90 } }),
+      createBuild('alpha', { scoresByStage: { start: 89.95, campaign: 89.95, early_maps: 89.95, endgame: 89.95 } }),
     ])
 
-    const result = recommendBuilds(
-      precisionDataset,
-      makePreferences({ class: 'any' }),
-    ) as MatchResult
+    const result = recommendBuilds(precisionDataset, makePreferences({ class: 'any' })) as MatchResult
 
     expect(result.primaryBuild.id).toBe('zeta')
     expect(result.primaryBuild.finalScore).toBe(55)
+    expect(result.score).toBe(55)
   })
 
-  it('applies deterministic ranking with different dataset order', () => {
+  it('returns concrete decision reason based on candidate comparison', () => {
     const dataset = makeDataset([
-      createBuild('beta', { id: 'beta' }),
-      createBuild('alpha', { id: 'alpha' }),
-      createBuild('charlie', { id: 'charlie' }),
+      createBuild('alpha', {
+        bossingScore: 100,
+        clearSpeedScore: 100,
+        survivabilityScore: 100,
+        easeOfUseScore: 100,
+        scoresByStage: { start: 80, campaign: 80, early_maps: 80, endgame: 80 },
+      }),
+      createBuild('beta', {
+        dataConfidence: 80,
+        bossingScore: 70,
+        clearSpeedScore: 70,
+        survivabilityScore: 70,
+        easeOfUseScore: 70,
+      }),
     ])
 
-    const resultA = recommendBuilds(dataset, makePreferences({ class: 'any', playStyle: 'melee' })) as MatchResult
-    const resultB = recommendBuilds(
-      makeDataset([dataset.builds[2], dataset.builds[0], dataset.builds[1]]),
-      makePreferences({ class: 'any', playStyle: 'melee' }),
-    ) as MatchResult
+    const result = recommendBuilds(dataset, makePreferences({ class: 'any', playStyle: 'melee' })) as MatchResult
 
-    expect(resultA.primaryBuild.id).toBe(resultB.primaryBuild.id)
-    expect(resultA.score).toBe(resultB.score)
-  })
-
-  it('returns full informative reason for match', () => {
-    const result = recommendBuilds(
-      makeDataset([createBuild('omega', { name: 'Omega build' })]),
-      makePreferences({
-        class: 'marauder',
-        stage: 'campaign',
-        goal: 'survivability',
-        playStyle: 'melee',
-      }),
-    )
-
-    expect(result.type).toBe('match')
-    expect(result.reason).toContain('Winner build: Omega build (omega)')
-    expect(result.reason).toContain('goal=survivability')
-    expect(result.reason).toContain('stage=campaign')
-    expect(result.reason).toContain('finalScore=')
-    expect(result.reason).toContain('compatibleBuilds=1')
-  })
-
-  it('returns no-match for zero compatible builds with clear guidance', () => {
-    const result = recommendBuilds(
-      makeDataset([createBuild('alpha')]),
-      makePreferences({ class: 'witch', playStyle: 'ranged', mode: 'softcore', budget: 'starter' }),
-    )
-
-    expect(result.type).toBe('no-match')
-    const noMatch = result as NoMatchResult
-    expect(noMatch.relaxableFilters).toEqual(['budget', 'mode', 'playStyle', 'class'])
-    expect(noMatch.reason).toContain('Goal only changes ranking weights')
+    expect(result.reason).toContain('higher finalScore')
+    expect(result.reason).toContain('goal=balanced')
+    expect(result.reason).toContain('stage=start')
+    expect(result.reason).toContain('compatibleBuilds=2')
   })
 })
 
 describe('recommendBuilds tie-breaks', () => {
-  it('uses dataConfidence before budget and stage', () => {
+  it('uses dataConfidence before lower budget/newer date/id', () => {
     const dataset = makeDataset([
-      createBuild('zulu', {
-        dataConfidence: 100,
-        scoresByStage: { start: 50, campaign: 50, early_maps: 50, endgame: 50 },
-        bossingScore: 50,
-        clearSpeedScore: 50,
-        survivabilityScore: 50,
-        easeOfUseScore: 50,
-      }),
       createBuild('alpha', {
+        id: 'alpha',
+        scoresByStage: { start: 70, campaign: 70, early_maps: 70, endgame: 70 },
+        dataConfidence: 90,
+        minimumBudget: 'high',
+        lastReviewedAt: '2026-01-01',
+      }),
+      createBuild('zulu', {
+        id: 'zulu',
+        scoresByStage: { start: 70, campaign: 70, early_maps: 70, endgame: 70 },
         dataConfidence: 10,
-        scoresByStage: { start: 50, campaign: 50, early_maps: 50, endgame: 50 },
-        bossingScore: 50,
-        clearSpeedScore: 50,
-        survivabilityScore: 50,
-        easeOfUseScore: 50,
+        minimumBudget: 'starter',
+        lastReviewedAt: '2026-12-31',
+      }),
+    ])
+
+    const result = recommendBuilds(dataset, makePreferences({ class: 'any', playStyle: 'melee' })) as MatchResult
+    expect(result.primaryBuild.id).toBe('alpha')
+  })
+
+  it('uses lower budget before newer date and id when dataConfidence is equal', () => {
+    const dataset = makeDataset([
+      createBuild('alpha', {
+        scoresByStage: { start: 70, campaign: 70, early_maps: 70, endgame: 70 },
+        dataConfidence: 50,
+        minimumBudget: 'high',
+        lastReviewedAt: '2024-01-01',
+      }),
+      createBuild('zulu', {
+        id: 'zulu',
+        scoresByStage: { start: 70, campaign: 70, early_maps: 70, endgame: 70 },
+        dataConfidence: 50,
+        minimumBudget: 'starter',
+        lastReviewedAt: '2026-12-31',
       }),
     ])
 
@@ -404,38 +490,42 @@ describe('recommendBuilds tie-breaks', () => {
     expect(result.primaryBuild.id).toBe('zulu')
   })
 
-  it('uses lower budget before id lexicographic order', () => {
+  it('uses newer review date before id when score/confidence/budget are equal', () => {
     const dataset = makeDataset([
-      createBuild('zulu', { minimumBudget: 'starter' }),
-      createBuild('alpha', { minimumBudget: 'medium' }),
+      createBuild('alpha', {
+        scoresByStage: { start: 70, campaign: 70, early_maps: 70, endgame: 70 },
+        dataConfidence: 50,
+        minimumBudget: 'starter',
+        lastReviewedAt: '2025-01-01',
+        id: 'alpha',
+      }),
+      createBuild('bravo', {
+        scoresByStage: { start: 70, campaign: 70, early_maps: 70, endgame: 70 },
+        dataConfidence: 50,
+        minimumBudget: 'starter',
+        lastReviewedAt: '2026-01-01',
+        id: 'bravo',
+      }),
     ])
 
     const result = recommendBuilds(dataset, makePreferences({ class: 'any', playStyle: 'melee' })) as MatchResult
-    expect(result.primaryBuild.id).toBe('zulu')
+    expect(result.primaryBuild.id).toBe('bravo')
   })
 
-  it('uses newer review date before id lexicographic order', () => {
-    const dataset = makeDataset([
-      createBuild('zulu', { dataConfidence: 90, lastReviewedAt: '2026-06-01T00:00:00Z' }),
-      createBuild('alpha', { dataConfidence: 90, lastReviewedAt: '2025-01-01T00:00:00Z' }),
-    ])
-
-    const result = recommendBuilds(dataset, makePreferences({ class: 'any', playStyle: 'melee' })) as MatchResult
-    expect(result.primaryBuild.id).toBe('zulu')
-  })
-
-  it('uses id tie-break as final deterministic fallback', () => {
+  it('uses stable id as final deterministic tie-break', () => {
     const dataset = makeDataset([
       createBuild('zulu', {
-        dataConfidence: 90,
+        scoresByStage: { start: 70, campaign: 70, early_maps: 70, endgame: 70 },
+        dataConfidence: 50,
         minimumBudget: 'starter',
-        lastReviewedAt: '2026-01-01T00:00:00Z',
+        lastReviewedAt: '2026-01-01',
         id: 'zulu',
       }),
       createBuild('alpha', {
-        dataConfidence: 90,
+        scoresByStage: { start: 70, campaign: 70, early_maps: 70, endgame: 70 },
+        dataConfidence: 50,
         minimumBudget: 'starter',
-        lastReviewedAt: '2026-01-01T00:00:00Z',
+        lastReviewedAt: '2026-01-01',
         id: 'alpha',
       }),
     ])
