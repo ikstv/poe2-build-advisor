@@ -294,6 +294,25 @@ describe('recommendBuilds filter and sorting logic', () => {
     expect([highResult.primaryBuild.id, ...highResult.alternatives.map((build) => build.id)]).toEqual(['starter', 'low', 'medium'])
   })
 
+  it('returns no-match for high-budget build when budget is medium and match when budget is high', () => {
+    const highOnlyDataset = makeDataset([
+      createBuild('high-only', { minimumBudget: 'high', class: 'marauder', id: 'high-only' }),
+    ])
+
+    const mediumResult = recommendBuilds(
+      highOnlyDataset,
+      makePreferences({ class: 'marauder', budget: 'medium', playStyle: 'melee' }),
+    )
+    expect(mediumResult.type).toBe('no-match')
+
+    const highResult = recommendBuilds(
+      highOnlyDataset,
+      makePreferences({ class: 'marauder', budget: 'high', playStyle: 'melee' }),
+    ) as MatchResult
+    expect(highResult.type).toBe('match')
+    expect(highResult.primaryBuild.id).toBe('high-only')
+  })
+
   it('returns 0 results as no-match', () => {
     const result = recommendBuilds(
       makeDataset([createBuild('alpha')]),
@@ -417,36 +436,114 @@ describe('recommendBuilds scoring', () => {
     expect(result.primaryBuild.id).toBe('zeta')
     expect(result.primaryBuild.finalScore).toBe(55)
     expect(result.score).toBe(55)
-  })
-
-  it('returns concrete decision reason based on candidate comparison', () => {
-    const dataset = makeDataset([
-      createBuild('alpha', {
-        bossingScore: 100,
-        clearSpeedScore: 100,
-        survivabilityScore: 100,
-        easeOfUseScore: 100,
-        scoresByStage: { start: 80, campaign: 80, early_maps: 80, endgame: 80 },
-      }),
-      createBuild('beta', {
-        dataConfidence: 80,
-        bossingScore: 70,
-        clearSpeedScore: 70,
-        survivabilityScore: 70,
-        easeOfUseScore: 70,
-      }),
-    ])
-
-    const result = recommendBuilds(dataset, makePreferences({ class: 'any', playStyle: 'melee' })) as MatchResult
-
+    expect(result.alternatives).toHaveLength(1)
+    expect(result.alternatives[0]!.id).toBe('alpha')
+    expect(result.alternatives[0]!.finalScore).toBe(55)
     expect(result.reason).toContain('higher finalScore')
-    expect(result.reason).toContain('goal=balanced')
-    expect(result.reason).toContain('stage=start')
-    expect(result.reason).toContain('compatibleBuilds=2')
+    expect(result.reason).not.toContain('stable id tie-break')
   })
+
 })
 
 describe('recommendBuilds tie-breaks', () => {
+  it('returns reason for only compatible build', () => {
+    const result = recommendBuilds(
+      makeDataset([createBuild('alpha')]),
+      makePreferences({ class: 'marauder' }),
+    ) as MatchResult
+
+    expect(result.reason).toContain('only compatible build')
+    expect(result.reason).toContain('goal=balanced')
+    expect(result.reason).toContain('stage=start')
+  })
+
+  it('returns reason for higher finalScore', () => {
+    const dataset = makeDataset([
+      createBuild('zeta', { scoresByStage: { start: 90, campaign: 90, early_maps: 90, endgame: 90 } }),
+      createBuild('alpha', { scoresByStage: { start: 89.95, campaign: 89.95, early_maps: 89.95, endgame: 89.95 } }),
+    ])
+
+    const result = recommendBuilds(dataset, makePreferences({ class: 'any' })) as MatchResult
+
+    expect(result.reason).toContain('higher finalScore')
+    expect(result.reason).not.toContain('stable id tie-break')
+  })
+
+  it('returns reason for higher dataConfidence', () => {
+    const dataset = makeDataset([
+      createBuild('alpha', {
+        dataConfidence: 90,
+      }),
+      createBuild('beta', {
+        id: 'beta',
+        dataConfidence: 10,
+      }),
+    ])
+
+    const result = recommendBuilds(dataset, makePreferences({ class: 'any' })) as MatchResult
+
+    expect(result.reason).toContain('higher dataConfidence')
+  })
+
+  it('returns reason for lower minimumBudget', () => {
+    const dataset = makeDataset([
+      createBuild('alpha', {
+        dataConfidence: 50,
+        minimumBudget: 'high',
+        lastReviewedAt: '2026-01-01',
+      }),
+      createBuild('zeta', {
+        id: 'zeta',
+        dataConfidence: 50,
+        minimumBudget: 'starter',
+        lastReviewedAt: '2026-01-01',
+      }),
+    ])
+
+    const result = recommendBuilds(dataset, makePreferences({ class: 'any' })) as MatchResult
+
+    expect(result.primaryBuild.id).toBe('zeta')
+    expect(result.reason).toContain('lower minimumBudget')
+  })
+
+  it('returns reason for newer lastReviewedAt', () => {
+    const dataset = makeDataset([
+      createBuild('alpha', {
+        dataConfidence: 50,
+        lastReviewedAt: '2025-01-01',
+      }),
+      createBuild('zulu', {
+        id: 'zulu',
+        dataConfidence: 50,
+        lastReviewedAt: '2026-01-01',
+      }),
+    ])
+
+    const result = recommendBuilds(dataset, makePreferences({ class: 'any' })) as MatchResult
+
+    expect(result.primaryBuild.id).toBe('zulu')
+    expect(result.reason).toContain('newer lastReviewedAt')
+  })
+
+  it('returns reason for stable id tie-break', () => {
+    const dataset = makeDataset([
+      createBuild('zulu', {
+        dataConfidence: 50,
+        lastReviewedAt: '2026-01-01',
+      }),
+      createBuild('alpha', {
+        dataConfidence: 50,
+        lastReviewedAt: '2026-01-01',
+        id: 'alpha',
+      }),
+    ])
+
+    const result = recommendBuilds(dataset, makePreferences({ class: 'any' })) as MatchResult
+
+    expect(result.primaryBuild.id).toBe('alpha')
+    expect(result.reason).toContain('stable id tie-break')
+  })
+
   it('uses dataConfidence before lower budget/newer date/id', () => {
     const dataset = makeDataset([
       createBuild('alpha', {
@@ -472,17 +569,17 @@ describe('recommendBuilds tie-breaks', () => {
   it('uses lower budget before newer date and id when dataConfidence is equal', () => {
     const dataset = makeDataset([
       createBuild('alpha', {
+        minimumBudget: 'high',
         scoresByStage: { start: 70, campaign: 70, early_maps: 70, endgame: 70 },
         dataConfidence: 50,
-        minimumBudget: 'high',
-        lastReviewedAt: '2024-01-01',
+        lastReviewedAt: '2026-01-01',
       }),
       createBuild('zulu', {
         id: 'zulu',
+        minimumBudget: 'starter',
         scoresByStage: { start: 70, campaign: 70, early_maps: 70, endgame: 70 },
         dataConfidence: 50,
-        minimumBudget: 'starter',
-        lastReviewedAt: '2026-12-31',
+        lastReviewedAt: '2025-01-01',
       }),
     ])
 

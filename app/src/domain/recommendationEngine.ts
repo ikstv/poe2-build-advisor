@@ -264,14 +264,16 @@ const getDecisionReason = (
   preferences: UserPreferences,
   compatibleCount: number,
 ): string => {
-  const roundedScore = Math.round(primary.finalScore * 10 + Number.EPSILON) / 10
+  const toUiScore = (score: number): number => Math.round(score * 10 + Number.EPSILON) / 10
+  const roundedScore = toUiScore(primary.finalScore)
+  const roundedAlternateScore = alternate ? toUiScore(alternate.finalScore) : undefined
 
   if (!alternate) {
     return `Primary build ${primary.id} selected because it is the only compatible build for goal=${preferences.goal}, stage=${preferences.stage}, score=${roundedScore}. compatibleBuilds=${compatibleCount}`
   }
 
   if (primary.finalScore > alternate.finalScore) {
-    return `Primary build ${primary.id} was selected over ${alternate.id} by higher finalScore (${primary.finalScore} > ${alternate.finalScore}) for goal=${preferences.goal}, stage=${preferences.stage}. compatibleBuilds=${compatibleCount}`
+    return `Primary build ${primary.id} was selected over ${alternate.id} by higher finalScore (${roundedScore} > ${roundedAlternateScore}) for goal=${preferences.goal}, stage=${preferences.stage}. compatibleBuilds=${compatibleCount}`
   }
 
   if (primary.dataConfidence > alternate.dataConfidence) {
@@ -593,7 +595,7 @@ export const recommendBuilds = (
   const compatibleCount = scoredBuilds.length
 
   const roundedPrimaryScore = roundToUiScore(primaryBuild.finalScore)
-  const decisionReason = getDecisionReason(primaryBuild, displayedAlternatives[0], preferences, compatibleCount)
+  const decisionReason = getDecisionReason(primaryBuild, rest[0], preferences, compatibleCount)
 
   return {
     type: 'match',
