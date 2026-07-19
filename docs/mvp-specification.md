@@ -8,51 +8,28 @@
 - Вхід: шість категоріальних параметрів, включно з поточним `stage`.
 - Вихід: прозора рекомендація білду з ранжуванням, поясненням та планом проходження.
 
-## 2) Вхідні параметри
+## 2) Вхідні параметри та системний контекст
 
-### 2.1 class
+### Користувацькі параметри
 
-- `class`: `any` або ID класу з `availableClasses` активного локального набору даних поточного патчу.
-- Значення `any` означає, що обмеження за класом не застосовується.
+- `class` (`any` або будь-який ID з `availableClasses`): `any` або ID класу з активного датасета.
+- `playStyle` (`melee`, `ranged`, `spells`, `minions`): обов’язковий фільтр сумісності.
+- `goal` (`balanced`, `bossing`, `clear_speed`, `survivability`): керує вагами для ранжування.
+- `mode` (`softcore`, `hardcore`): фільтр сумісності режиму.
+- `budget` (`starter`, `low`, `medium`, `high`): фільтр за мінімальними витратами.
+- `stage` (`start`, `campaign`, `early_maps`, `endgame`): поточний етап гравця.
+- `stage` впливає на оцінку через `stageScore` (`scoresByStage`) і визначає, яка частина плану є актуальною зараз.
+- Повний `path` повертається повністю від `start` до `endgame` незалежно від поточного `stage`.
 
-### 2.2 availableClasses
+### Системні дані
 
-- `availableClasses`: список ID класів, які доступні в активному локальному наборі даних поточного патчу.
-- Параметр `class` має бути одним із цих ID або `any`.
-
-### 2.3 stage
-
-- `stage`: `start`, `campaign`, `early_maps`, `endgame`.
-- Визначає, з якого етапу користувач перебуває зараз.
-- Повний progression `path` завжди відображається повністю, але `stage` впливає на поточний `stageScore`.
-
-### 2.4 playStyle
-
-- `playStyle`: `melee`, `ranged`, `spells`, `minions`.
-- Обов’язковий фільтр сумісності.
-- Білд проходить далі лише якщо `playStyle` входить до `playStyles` білду.
-
-### 2.5 goal
-
-- `goal`: `balanced`, `bossing`, `clear_speed`, `survivability`.
-- Керує вагами оцінки.
-
-### 2.6 mode
-
-- `mode`: `softcore`, `hardcore`.
-- Режим обмежує набори білдів, сумісні з очікуваною безпекою/живучістю.
-
-### 2.7 budget
-
-- `budget`: `starter`, `low`, `medium`, `high`.
-- Порядок бюджету: `starter = 0`, `low = 1`, `medium = 2`, `high = 3`.
-- Білд проходить фільтр, якщо числове значення `minimumBudget` не перевищує значення `budget` користувача.
-
-### 2.8 targetPatch (системний контекст)
-
-- `targetPatch` не вводиться користувачем.
-- Додається системою з метаданих активного локального набору даних.
-- До розгляду допускаються лише білди з `patch === targetPatch`.
+- `targetPatch`:
+  - не вводиться користувачем;
+  - береться з метаданих активного локального набору даних;
+  - жорстко фіксується для сесії рекомендації.
+- `availableClasses`:
+  - список ID класів, які є в активному датасеті;
+  - не є користувацьким параметром.
 
 ## 3) Формат результату рекомендації
 
@@ -62,13 +39,16 @@
 - `score`: числову оцінку від `0` до `100`, відображену з одним знаком після крапки.
 - `reason`: пояснення, чому цей білд обраний.
 - `path`: повний шлях прогресу від `start` до `endgame`.
-- `skills`: список ключових навичок/умінь для фокусу.
-- `passiveMilestones`: ключові пасивні вміння та віхи.
-- `gearMilestones`: критичні цілі спорядження по етапах.
-- `upgradePriorities`: наступні пріоритети апгрейду після базового плану.
 - `alternatives`: доступні альтернативні білди в порядку релевантності.
 - `patch`: номер патчу, у рамках якого валідні ці дані (`targetPatch`).
 - `lastReviewedAt`: дата останньої перевірки даних.
+
+`path` та поля для відображення деталей беруться з `Build.path`:
+
+- `skills`
+- `passiveMilestones`
+- `gearMilestones`
+- `upgradePriorities`
 
 ## 4) Прозорий алгоритм рекомендації
 
@@ -77,12 +57,12 @@
 До розгляду допускаються лише білди, які пройшли всі фільтри:
 
 1. Визначення `targetPatch` з активного локального набору даних.
-2. Сумісність патчу: `patch === targetPatch`.
-3. Сумісність класу з параметром `class` (`any` дозволяє всі класи).
-4. Обов’язкова наявність `playStyle` у `playStyles` білду.
-5. Сумісність режиму (`modes` містить обраний `mode`).
-6. Бюджет: числове значення `minimumBudget` білду не перевищує числове значення `budget` користувача.
-7. Перевірка, що `class` (якщо не `any`) існує в `availableClasses` активного набору даних.
+2. Сумісність патчу: `build.patch === targetPatch`.
+3. Валідація системного `availableClasses`.
+4. Сумісність класу з параметром `class` (`any` дозволяє всі класи).
+5. Обов’язкова наявність `playStyle` у `playStyles` білду.
+6. Сумісність режиму (`modes` містить обраний `mode`).
+7. Бюджет: `build.minimumBudget` у порядку `starter=0`, `low=1`, `medium=2`, `high=3` не перевищує користувацький `budget`.
 
 ### 4.2 Крок 2. Оцінка
 
@@ -105,7 +85,7 @@
 
 ### 4.4 Крок 4. Нормалізація
 
-1. Валідувати, що всі компонентні бали, включно з `weightedScore`, у межах 0–100.
+1. Валідувати, що всі компонентні бали у межах `0–100`.
 2. Обчислити зважену суму за формулою:
    `weightedScore = Σ(metricScore * metricWeight) / 100`
 3. Отримати фінальний бал:
@@ -120,7 +100,7 @@
 Якщо кілька білдів мають однаковий `finalScore`, застосувати у фіксованому порядку:
 
 1. `dataConfidence` (вище краще),
-2. нижчий бюджет (`starter` < `low` < `medium` < `high`),
+2. нижчий бюджет (`Build.minimumBudget`),
 3. новіша `lastReviewedAt` (пізніша дата краще),
 4. стабільний `id` (лексикографічно).
 
@@ -128,7 +108,9 @@
 
 1. 0 білдів:
    - Повернути `noMatch`.
-   - Пояснити, які фільтри можна змінити в першу чергу (`budget`, `mode`, `goal`, `playStyle`, `class`).
+   - Пояснити, що `goal` змінює тільки ваги рейтингування, але не кількість сумісних білдів.
+   - Пояснити, що `targetPatch` не послаблюється.
+   - Рекомендовані до зміни фільтри: `budget`, `mode`, `playStyle`, `class`.
 2. 1–2 білди:
    - Показати лише доступні реальні варіанти.
    - Не підставляти несумісні або вигадані білди.
@@ -145,9 +127,27 @@
 
 - Для кожного `goal` сума ваг дорівнює `100%`.
 
-## 6) Початкова модель білду
+## 6) Моделі даних
 
-`Build`:
+### BuildDataset
+
+- `targetPatch` (string)
+- `availableClasses` (string[])
+- `builds` (Build[])
+
+Контракти:
+
+- Для кожного `Build` у `builds` має виконуватись `Build.patch === targetPatch`.
+- `Build.class` має бути в `availableClasses`.
+
+### StagePlan
+
+- `skills` (string[])
+- `passiveMilestones` (string[])
+- `gearMilestones` (string[])
+- `upgradePriorities` (string[])
+
+### Build
 
 - `id` (string)
 - `name` (string)
@@ -164,11 +164,12 @@
 - `easeOfUseScore` (number 0–100)
 - `dataConfidence` (number 0–100)
 - `lastReviewedAt` (ISO 8601 date string)
-- `skills` (array of strings)
-- `passiveMilestones` (array of objects: `stage`, `goal`, `items`)
-- `gearMilestones` (array of objects: `stage`, `items`)
-- `upgradePriorities` (array of strings)
-- `sources` (array of strings, посилання або опис перевірених джерел)
+- `path` (object): 
+  - `start`: StagePlan
+  - `campaign`: StagePlan
+  - `early_maps`: StagePlan
+  - `endgame`: StagePlan
+- `sources` (array of strings, verified source references)
 
 ## 7) Обмеження MVP
 
@@ -185,12 +186,13 @@
 
 ## 9) Критерії готовності MVP-рекомендації
 
-- Наявні вхідні параметри, їхній enum і валідація.
+- Наявні вхідні параметри, системний контекст, їхній enum і валідація.
+- Реалізовано `BuildDataset` і правила узгодженості (`Build.patch === targetPatch`, `Build.class ∈ availableClasses`).
 - Проходження фільтрів `targetPatch`, `class`, `playStyle`, `mode`, `budget`.
-- Алгоритм відбору й ранжування реалізований за зафіксованими вагами та правилами нічиєї.
-- Коректне `path` від `start` до `endgame`, `stage` впливає на поточний бал.
-- Поведінка при `0`, `1` та `2` результатах реалізована без вигадувань.
-- Усі бали та `finalScore` залишаються в межах `0–100`, а вивід має округлення до одного знака.
+- Результат ранжування дотримується зафіксованих ваг, правила tie-break.
+- Коректне `path` від `start` до `endgame`; `stage` впливає лише на поточний скор.
+- Поведінка при `0`, `1`, `2` результатах без вигадування/підміни даних.
+- Усі метрики та `finalScore` залишаються в межах `0–100`, а вивід має округлення до одного знака.
 
 ---
 
@@ -204,51 +206,28 @@ This document defines the approved minimum viable product (MVP) specification fo
 - Inputs are six categorical inputs, including the current progression stage.
 - Output is a transparent ranked build recommendation with an explanation and progression plan.
 
-## 2) Input parameters
+## 2) Inputs and system context
 
-### 2.1 class
+### User inputs
 
-- `class`: `any` or a class ID from `availableClasses` of the active local dataset for the current patch.
-- `any` means no class restriction.
+- `class` (`any` or class ID from `availableClasses`): `any` or a class ID from active dataset data.
+- `playStyle` (`melee`, `ranged`, `spells`, `minions`): mandatory compatibility filter.
+- `goal` (`balanced`, `bossing`, `clear_speed`, `survivability`): controls score weights.
+- `mode` (`softcore`, `hardcore`): mode-compatibility filter.
+- `budget` (`starter`, `low`, `medium`, `high`): minimum budget compatibility filter.
+- `stage` (`start`, `campaign`, `early_maps`, `endgame`): current player stage.
+- `stage` only affects scoring through `stageScore` (`scoresByStage`) and indicates which stage details are currently relevant.
+- Full `path` is returned from `start` to `endgame` regardless of current `stage`.
 
-### 2.2 availableClasses
+### System context
 
-- `availableClasses`: the list of class IDs exposed by the active local dataset for the current patch.
-- The `class` value must be one of these IDs or `any`.
-
-### 2.3 stage
-
-- `stage`: `start`, `campaign`, `early_maps`, `endgame`.
-- Indicates where the player is right now.
-- Full progression `path` is always displayed from start to endgame, while `stage` only affects the current score.
-
-### 2.4 playStyle
-
-- `playStyle`: `melee`, `ranged`, `spells`, `minions`.
-- Mandatory compatibility filter.
-- A build is eligible only if `playStyle` exists in the build's `playStyles`.
-
-### 2.5 goal
-
-- `goal`: `balanced`, `bossing`, `clear_speed`, `survivability`.
-- Controls weight assignment during scoring.
-
-### 2.6 mode
-
-- `mode`: `softcore`, `hardcore`.
-- Restricts builds by survivability and mode-specific safety assumptions.
-
-### 2.7 budget
-
-- `budget`: `starter`, `low`, `medium`, `high`.
-- Budget order: `starter = 0`, `low = 1`, `medium = 2`, `high = 3`.
-- A build passes the budget filter when build `minimumBudget` does not exceed the user's `budget`.
-
-### 2.8 targetPatch (system context)
-
-- `targetPatch` is not entered by the user.
-- The app reads it from active local dataset metadata.
-- Only builds with `patch === targetPatch` are included in ranking.
+- `targetPatch`:
+  - is not user input;
+  - is read from active local dataset metadata;
+  - is fixed for the recommendation run.
+- `availableClasses`:
+  - list of class IDs available in the active dataset;
+  - is not a user input.
 
 ## 3) Recommendation output
 
@@ -258,13 +237,16 @@ Output must include:
 - `score`: numeric score from `0` to `100`, shown with one decimal digit.
 - `reason`: explanation of why this build is selected.
 - `path`: full progression path from `start` to `endgame`.
-- `skills`: key skills / skill priorities.
-- `passiveMilestones`: key passive nodes and milestones.
-- `gearMilestones`: major gear milestones.
-- `upgradePriorities`: next upgrade priorities after the base plan.
 - `alternatives`: available alternative builds in order of relevance.
 - `patch`: patch version used for this recommendation (`targetPatch`).
 - `lastReviewedAt`: date of last data verification.
+
+`path` and detail fields are read from `Build.path`:
+
+- `skills`
+- `passiveMilestones`
+- `gearMilestones`
+- `upgradePriorities`
 
 ## 4) Transparent recommendation algorithm
 
@@ -273,12 +255,12 @@ Output must include:
 Only builds that pass all filters are considered:
 
 1. Resolve `targetPatch` from the active local dataset.
-2. Patch compatibility: `patch === targetPatch`.
-3. Class compatibility with `class` (`any` allows all classes).
-4. Mandatory play style presence in `playStyles`.
-5. Mode compatibility (`modes` contains selected `mode`).
-6. Budget compatibility: build `minimumBudget` does not exceed user's budget.
-7. Class validation: if `class !== any`, it must be present in active `availableClasses`.
+2. Patch compatibility: `build.patch === targetPatch`.
+3. Validate system `availableClasses`.
+4. Class compatibility with `class` (`any` allows all classes).
+5. Mandatory play style presence in `playStyles`.
+6. Mode compatibility (`modes` contains selected `mode`).
+7. Budget check: `build.minimumBudget` with `starter=0`, `low=1`, `medium=2`, `high=3` does not exceed user `budget`.
 
 ### 4.2 Step 2. Scoring
 
@@ -301,7 +283,7 @@ Use `goal`-specific weights:
 
 ### 4.4 Step 4. Normalization
 
-1. Validate all metric scores (and weighted results) are in the range of `0–100`.
+1. Validate all metric scores are in the `0–100` range.
 2. Compute weighted score:
    `weightedScore = Σ(metricScore * metricWeight) / 100`
 3. Final score:
@@ -316,7 +298,7 @@ Use `goal`-specific weights:
 If filtered builds have equal `finalScore`, apply in order:
 
 1. `dataConfidence` descending,
-2. lower budget first (`starter` < `low` < `medium` < `high`),
+2. lower budget (`Build.minimumBudget`),
 3. newer `lastReviewedAt` (later date first),
 4. stable `id` (lexicographically).
 
@@ -324,7 +306,9 @@ If filtered builds have equal `finalScore`, apply in order:
 
 1. If there are `0` builds:
    - Return a `noMatch` state.
-   - Explain which filters can be loosened first (`budget`, `mode`, `goal`, `playStyle`, `class`).
+   - Explain that `goal` changes only ranking weights and cannot increase matching build count.
+   - Explain that `targetPatch` is never loosened.
+   - Recommended filters to relax: `budget`, `mode`, `playStyle`, `class`.
 2. If there are `1` or `2` builds:
    - Return only available real matches.
    - Do not substitute incompatible or fictional builds.
@@ -341,9 +325,27 @@ If filtered builds have equal `finalScore`, apply in order:
 
 - For each `goal`, weights sum to exactly `100%`.
 
-## 6) Initial Build model
+## 6) Data models
 
-`Build`:
+### BuildDataset
+
+- `targetPatch` (string)
+- `availableClasses` (string[])
+- `builds` (Build[])
+
+Contracts:
+
+- For every `Build` in `builds`, `Build.patch === targetPatch` must hold.
+- `Build.class` must be in `availableClasses`.
+
+### StagePlan
+
+- `skills` (string[])
+- `passiveMilestones` (string[])
+- `gearMilestones` (string[])
+- `upgradePriorities` (string[])
+
+### Build
 
 - `id` (string)
 - `name` (string)
@@ -353,17 +355,18 @@ If filtered builds have equal `finalScore`, apply in order:
 - `playStyles` (array of string)
 - `modes` (array of string)
 - `minimumBudget` (string: `starter`, `low`, `medium`, `high`)
-- `scoresByStage` (object with keys `start`, `campaign`, `early_maps`, `endgame`; values 0–100)
+- `scoresByStage` (object with keys: `start`, `campaign`, `early_maps`, `endgame`; values 0–100)
 - `bossingScore` (number 0–100)
 - `clearSpeedScore` (number 0–100)
 - `survivabilityScore` (number 0–100)
 - `easeOfUseScore` (number 0–100)
 - `dataConfidence` (number 0–100)
 - `lastReviewedAt` (ISO 8601 date string)
-- `skills` (array of strings)
-- `passiveMilestones` (array of objects: `stage`, `goal`, `items`)
-- `gearMilestones` (array of objects: `stage`, `items`)
-- `upgradePriorities` (array of strings)
+- `path` (object):
+  - `start`: StagePlan
+  - `campaign`: StagePlan
+  - `early_maps`: StagePlan
+  - `endgame`: StagePlan
 - `sources` (array of strings, verified source references)
 
 ## 7) MVP limitations
@@ -381,9 +384,10 @@ If filtered builds have equal `finalScore`, apply in order:
 
 ## 9) MVP recommendation acceptance criteria
 
-- All inputs, enums, and validation are defined.
-- The filter pipeline includes `targetPatch`, `class`, `playStyle`, `mode`, and budget.
-- Ranking and tie-breaking follow the weight table and `dataConfidence` first logic.
-- Output includes the full path from `start` to `endgame`, with current `stage` affecting scoring only.
-- Correct handling for `0`, `1`, and `2` matches without fabricating builds.
+- All user inputs, system context fields, enums, and validation are defined.
+- BuildDataset is defined and includes consistency rules (`Build.patch === targetPatch`, `Build.class ∈ availableClasses`).
+- Filter pipeline includes `targetPatch`, `class`, `playStyle`, `mode`, `budget`.
+- Ranking and tie-breaking follow the weight table and `dataConfidence` first.
+- Output includes full `path` from `start` to `endgame`; `stage` affects only current score.
+- Correct behavior for `0`, `1`, and `2` matches with no fabricated replacements.
 - All metrics and `finalScore` remain within `0–100`, and displayed score is rounded to one decimal.
