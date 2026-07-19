@@ -265,32 +265,38 @@ const getDecisionReason = (
   compatibleCount: number,
 ): string => {
   const toUiScore = (score: number): number => Math.round(score * 10 + Number.EPSILON) / 10
+  const formatUiScore = (score: number): string => toUiScore(score).toFixed(1)
   const roundedScore = toUiScore(primary.finalScore)
   const roundedAlternateScore = alternate ? toUiScore(alternate.finalScore) : undefined
+  const sharedContext = `goal=${preferences.goal}, stage=${preferences.stage}, score=${formatUiScore(primary.finalScore)}, compatibleBuilds=${compatibleCount}`
 
   if (!alternate) {
-    return `Primary build ${primary.id} selected because it is the only compatible build for goal=${preferences.goal}, stage=${preferences.stage}, score=${roundedScore}. compatibleBuilds=${compatibleCount}`
+    return `Primary build ${primary.id} selected because it is the only compatible build for ${sharedContext}`
   }
 
   if (primary.finalScore > alternate.finalScore) {
-    return `Primary build ${primary.id} was selected over ${alternate.id} by higher finalScore (${roundedScore} > ${roundedAlternateScore}) for goal=${preferences.goal}, stage=${preferences.stage}. compatibleBuilds=${compatibleCount}`
+    if (roundedAlternateScore !== undefined && roundedScore === roundedAlternateScore) {
+      return `Primary build ${primary.id} was selected over ${alternate.id} by higher unrounded finalScore (${primary.finalScore} > ${alternate.finalScore}; both display as ${formatUiScore(primary.finalScore)}) for ${sharedContext}`
+    }
+
+    return `Primary build ${primary.id} was selected over ${alternate.id} by higher finalScore (${formatUiScore(primary.finalScore)} > ${formatUiScore(alternate.finalScore)}) for ${sharedContext}`
   }
 
   if (primary.dataConfidence > alternate.dataConfidence) {
-    return `Primary build ${primary.id} was selected over ${alternate.id} by higher dataConfidence (${primary.dataConfidence} > ${alternate.dataConfidence}) while finalScore is tied for goal=${preferences.goal}, stage=${preferences.stage}. compatibleBuilds=${compatibleCount}`
+    return `Primary build ${primary.id} was selected over ${alternate.id} by higher dataConfidence (${primary.dataConfidence} > ${alternate.dataConfidence}) while finalScore is tied for ${sharedContext}`
   }
 
   if (budgetOrder[primary.minimumBudget] < budgetOrder[alternate.minimumBudget]) {
-    return `Primary build ${primary.id} was selected over ${alternate.id} by lower minimumBudget (${primary.minimumBudget} < ${alternate.minimumBudget}) at equal finalScore and dataConfidence for goal=${preferences.goal}, stage=${preferences.stage}. compatibleBuilds=${compatibleCount}`
+    return `Primary build ${primary.id} was selected over ${alternate.id} by lower minimumBudget (${primary.minimumBudget} < ${alternate.minimumBudget}) at equal finalScore and dataConfidence for ${sharedContext}`
   }
 
   const primaryReviewedAt = new Date(primary.lastReviewedAt).getTime()
   const alternateReviewedAt = new Date(alternate.lastReviewedAt).getTime()
   if (primaryReviewedAt > alternateReviewedAt) {
-    return `Primary build ${primary.id} was selected over ${alternate.id} by newer lastReviewedAt (${primary.lastReviewedAt} > ${alternate.lastReviewedAt}) while score, dataConfidence and minimumBudget are equal for goal=${preferences.goal}, stage=${preferences.stage}. compatibleBuilds=${compatibleCount}`
+    return `Primary build ${primary.id} was selected over ${alternate.id} by newer lastReviewedAt (${primary.lastReviewedAt} > ${alternate.lastReviewedAt}) while score, dataConfidence and minimumBudget are equal for ${sharedContext}`
   }
 
-  return `Primary build ${primary.id} was selected over ${alternate.id} by stable id tie-break (${primary.id} < ${alternate.id}) for goal=${preferences.goal}, stage=${preferences.stage}. compatibleBuilds=${compatibleCount}`
+  return `Primary build ${primary.id} was selected over ${alternate.id} by stable id tie-break (${primary.id} < ${alternate.id}) for ${sharedContext}`
 }
 
 export const validateBuildDataset = (dataset: BuildDataset): void => {
