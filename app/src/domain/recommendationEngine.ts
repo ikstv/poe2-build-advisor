@@ -39,8 +39,8 @@ export interface Build {
   patch: string
   class: string
   ascendancy: string | null
-  playStyles: string[]
-  modes: string[]
+  playStyles: PlayStyle[]
+  modes: Mode[]
   minimumBudget: Budget
   scoresByStage: StageScores
   bossingScore: number
@@ -67,6 +67,7 @@ export interface BuildDataset {
 interface BuildWithScore extends Build {
   finalScore: number
 }
+
 type ScoredBuild = BuildWithScore
 
 export interface MatchResult {
@@ -89,7 +90,7 @@ export interface NoMatchResult {
 
 export type RecommendationResult = MatchResult | NoMatchResult
 
-type WeightPlan = {
+export type WeightPlan = {
   stage: number
   survivability: number
   clearSpeed: number
@@ -130,26 +131,124 @@ const goalWeights: Record<Goal, WeightPlan> = {
   },
 }
 
-const requiredPathStages: Array<keyof Build['path']> = [
-  'start',
-  'campaign',
-  'early_maps',
-  'endgame',
-]
+const validStages: readonly Stage[] = ['start', 'campaign', 'early_maps', 'endgame']
+const validPlayStyles: readonly PlayStyle[] = ['melee', 'ranged', 'spells', 'minions']
+const validGoals: readonly Goal[] = ['balanced', 'bossing', 'clear_speed', 'survivability']
+const validModes: readonly Mode[] = ['softcore', 'hardcore']
+const validBudgets: readonly Budget[] = ['starter', 'low', 'medium', 'high']
 
-const isSupportedScore = (value: unknown): value is number =>
-  typeof value === 'number' && value >= 0 && value <= 100 && Number.isFinite(value)
+const requiredPathStages: Array<keyof Build['path']> = [...validStages]
+
+const isAllowedValue = <T extends string>(value: unknown, allowed: readonly T[]): value is T =>
+  typeof value === 'string' && (allowed as readonly string[]).includes(value)
+
+const isNonEmptyString = (value: unknown): value is string =>
+  typeof value === 'string' && value.trim() !== ''
+
+const isSupportedScore = (value: unknown, context: string): number => {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 100) {
+    throw new Error(context)
+  }
+  return value
+}
 
 const ensureArrayOfStrings = (value: unknown): value is string[] =>
-  Array.isArray(value) && value.every((entry) => typeof entry === 'string')
+  Array.isArray(value) && value.every((entry) => isNonEmptyString(entry))
+
+const parseIsoOffsetMinutes = (offset: string): number => {
+  if (offset === 'Z') {
+    return 0
+  }
+
+  const sign = offset[0] === '+' ? 1 : -1
+  const [hours, minutes] = offset.slice(1).split(':')
+  return sign * (Number(hours) * 60 + Number(minutes))
+}
+
+const isValidIsoDate = (value: unknown, context: string): void => {
+  if (!isNonEmptyString(value)) {
+    throw new Error(context)
+  }
+
+  const isoRegex =
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?(Z|[+-](\d{2}):(\d{2}))$/
+  const match = value.match(isoRegex)
+  if (match === null) {
+    throw new Error(context)
+  }
+
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const hours = Number(match[4])
+  const minutes = Number(match[5])
+  const seconds = Number(match[6])
+  const milliseconds = match[7] ? Number(match[7].padEnd(3, '0')) : 0
+  const offsetText = match[8]
+
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31 ||
+    hours > 23 ||
+    minutes > 59 ||
+    seconds > 59 ||
+    milliseconds < 0 ||
+    milliseconds > 999
+  ) {
+    throw new Error(context)
+  }
+
+  const candidateUtc = new Date(Date.UTC(year, month - 1, day, hours, minutes, seconds, milliseconds))
+  if (
+    candidateUtc.getUTCFullYear() !== year ||
+    candidateUtc.getUTCMonth() !== month - 1 ||
+    candidateUtc.getUTCDate() !== day ||
+    candidateUtc.getUTCHours() !== hours ||
+    candidateUtc.getUTCMinutes() !== minutes ||
+    candidateUtc.getUTCSeconds() !== seconds ||
+    candidateUtc.getUTCMilliseconds() !== milliseconds
+  ) {
+    throw new Error(context)
+  }
+
+  const parsed = new Date(value)
+  const parsedAt = parsed.getTime()
+  if (!Number.isFinite(parsedAt)) {
+    throw new Error(context)
+  }
+
+  const offsetMinutes = parseIsoOffsetMinutes(offsetText)
+  const expectedAt = candidateUtc.getTime() - offsetMinutes * 60 * 1000
+
+  if (parsedAt !== expectedAt) {
+    throw new Error(context)
+  }
+}
 
 export const validateBuildDataset = (dataset: BuildDataset): void => {
+  if (!dataset || typeof dataset !== 'object') {
+    throw new Error('Dataset must be an object')
+  }
+
   if (typeof dataset.targetPatch !== 'string' || dataset.targetPatch.trim() === '') {
     throw new Error('Dataset targetPatch must be a non-empty string')
   }
 
   if (!Array.isArray(dataset.availableClasses) || dataset.availableClasses.length === 0) {
     throw new Error('Dataset availableClasses must be a non-empty array')
+  }
+
+  const uniqueClasses = new Set<string>()
+  for (const className of dataset.availableClasses) {
+    if (!isNonEmptyString(className)) {
+      throw new Error('Dataset availableClasses must contain non-empty strings')
+    }
+    if (uniqueClasses.has(className)) {
+      throw new Error(`Dataset availableClasses must be unique, duplicate found: ${className}`)
+    }
+    uniqueClasses.add(className)
   }
 
   if (!Array.isArray(dataset.builds)) {
@@ -167,90 +266,144 @@ export const validateBuildDataset = (dataset: BuildDataset): void => {
     }
     ids.add(build.id)
 
+    if (typeof build.patch !== 'string' || build.patch.trim() === '') {
+      throw new Error(`Build patch must be a non-empty string: ${build.id}`)
+    }
+
     if (build.patch !== dataset.targetPatch) {
       throw new Error(`Build patch mismatch: ${build.id}`)
     }
 
-    if (!dataset.availableClasses.includes(build.class)) {
+    if (!isNonEmptyString(build.class)) {
+      throw new Error(`Build class must be a non-empty string: ${build.id}`)
+    }
+
+    if (!uniqueClasses.has(build.class)) {
       throw new Error(`Build class is not available for current dataset: ${build.id}`)
     }
 
+    if (!isNonEmptyString(build.name)) {
+      throw new Error(`Build name must be a non-empty string: ${build.id}`)
+    }
+
     if (!ensureArrayOfStrings(build.sources)) {
-      throw new Error(`Build sources must be an array of strings: ${build.id}`)
+      throw new Error(`Build sources must be an array of non-empty strings: ${build.id}`)
     }
 
-    if (!ensureArrayOfStrings(build.playStyles)) {
-      throw new Error(`Build playStyles must be an array of strings: ${build.id}`)
+    if (!Array.isArray(build.playStyles) || build.playStyles.some((style) => !isAllowedValue(style, validPlayStyles))) {
+      throw new Error(`Build playStyles must contain only valid values: ${build.id}`)
     }
 
-    if (!ensureArrayOfStrings(build.modes)) {
-      throw new Error(`Build modes must be an array of strings: ${build.id}`)
+    if (!Array.isArray(build.modes) || build.modes.some((mode) => !isAllowedValue(mode, validModes))) {
+      throw new Error(`Build modes must contain only valid values: ${build.id}`)
     }
 
-    if (!(build.minimumBudget in budgetOrder)) {
-      throw new Error(`Build minimumBudget must be one of allowed values: ${build.id}`)
+    if (!Object.hasOwn(budgetOrder, build.minimumBudget)) {
+      throw new Error(`Build minimumBudget must be one of starter, low, medium, high: ${build.id}`)
     }
 
-    const reviewedAt = new Date(build.lastReviewedAt).getTime()
-    if (Number.isNaN(reviewedAt)) {
-      throw new Error(`Build lastReviewedAt must be valid ISO date string: ${build.id}`)
+    if (typeof build.path !== 'object' || build.path === null) {
+      throw new Error(`Build path must be an object: ${build.id}`)
     }
 
-    const path = build.path
     for (const stage of requiredPathStages) {
-      const plan = path?.[stage]
+      const plan = build.path[stage]
       if (!plan) {
         throw new Error(`Build path must include stage ${stage}: ${build.id}`)
       }
-      if (!ensureArrayOfStrings(plan.skills)) {
-        throw new Error(`Build path ${stage}.skills must be array of strings: ${build.id}`)
+      if (!Array.isArray(plan.skills) || plan.skills.some((skill) => typeof skill !== 'string')) {
+        throw new Error(`Build path ${stage}.skills must be an array of strings: ${build.id}`)
       }
-      if (!ensureArrayOfStrings(plan.passiveMilestones)) {
-        throw new Error(
-          `Build path ${stage}.passiveMilestones must be array of strings: ${build.id}`,
-        )
+      if (
+        !Array.isArray(plan.passiveMilestones) ||
+        plan.passiveMilestones.some((skill) => typeof skill !== 'string')
+      ) {
+        throw new Error(`Build path ${stage}.passiveMilestones must be an array of strings: ${build.id}`)
       }
-      if (!ensureArrayOfStrings(plan.gearMilestones)) {
-        throw new Error(
-          `Build path ${stage}.gearMilestones must be array of strings: ${build.id}`,
-        )
+      if (!Array.isArray(plan.gearMilestones) || plan.gearMilestones.some((skill) => typeof skill !== 'string')) {
+        throw new Error(`Build path ${stage}.gearMilestones must be an array of strings: ${build.id}`)
       }
-      if (!ensureArrayOfStrings(plan.upgradePriorities)) {
-        throw new Error(
-          `Build path ${stage}.upgradePriorities must be array of strings: ${build.id}`,
-        )
+      if (
+        !Array.isArray(plan.upgradePriorities) ||
+        plan.upgradePriorities.some((skill) => typeof skill !== 'string')
+      ) {
+        throw new Error(`Build path ${stage}.upgradePriorities must be an array of strings: ${build.id}`)
       }
     }
 
-    const scores = build.scoresByStage
+    if (typeof build.scoresByStage !== 'object' || build.scoresByStage === null) {
+      throw new Error(`Build scoresByStage must be an object: ${build.id}`)
+    }
+
     for (const stage of requiredPathStages) {
-      if (!isSupportedScore(scores?.[stage])) {
-        throw new Error(`scoresByStage.${stage} must be between 0 and 100: ${build.id}`)
-      }
+      isSupportedScore(
+        build.scoresByStage[stage],
+        `scoresByStage.${stage} must be a number between 0 and 100: ${build.id}`,
+      )
     }
 
-    if (!isSupportedScore(build.bossingScore)) {
-      throw new Error(`bossingScore must be between 0 and 100: ${build.id}`)
-    }
-    if (!isSupportedScore(build.clearSpeedScore)) {
-      throw new Error(`clearSpeedScore must be between 0 and 100: ${build.id}`)
-    }
-    if (!isSupportedScore(build.survivabilityScore)) {
-      throw new Error(`survivabilityScore must be between 0 and 100: ${build.id}`)
-    }
-    if (!isSupportedScore(build.easeOfUseScore)) {
-      throw new Error(`easeOfUseScore must be between 0 and 100: ${build.id}`)
-    }
-    if (!isSupportedScore(build.dataConfidence)) {
-      throw new Error(`dataConfidence must be between 0 and 100: ${build.id}`)
-    }
+    isSupportedScore(build.bossingScore, `bossingScore must be a number between 0 and 100: ${build.id}`)
+    isSupportedScore(
+      build.clearSpeedScore,
+      `clearSpeedScore must be a number between 0 and 100: ${build.id}`,
+    )
+    isSupportedScore(
+      build.survivabilityScore,
+      `survivabilityScore must be a number between 0 and 100: ${build.id}`,
+    )
+    isSupportedScore(
+      build.easeOfUseScore,
+      `easeOfUseScore must be a number between 0 and 100: ${build.id}`,
+    )
+    isSupportedScore(
+      build.dataConfidence,
+      `dataConfidence must be a number between 0 and 100: ${build.id}`,
+    )
+    isValidIsoDate(
+      build.lastReviewedAt,
+      `Build lastReviewedAt must be a valid ISO 8601 date string: ${build.id}`,
+    )
   }
 
-  for (const [goal, weights] of Object.entries(goalWeights)) {
+  for (const [goal, weights] of Object.entries(goalWeights) as [Goal, WeightPlan][]) {
     const totalWeight = Object.values(weights).reduce((sum, value) => sum + value, 0)
     if (totalWeight !== expectedGoalWeightSum) {
       throw new Error(`Goal weights for ${goal} must sum to ${expectedGoalWeightSum}`)
     }
+  }
+}
+
+export const validateUserPreferences = (dataset: BuildDataset, preferences: UserPreferences): void => {
+  if (!preferences || typeof preferences !== 'object') {
+    throw new Error('User preferences must be an object')
+  }
+
+  if (typeof preferences.class !== 'string' || preferences.class.trim() === '') {
+    throw new Error('User preference class must be "any" or a non-empty string')
+  }
+
+  if (preferences.class !== 'any' && !dataset.availableClasses.includes(preferences.class)) {
+    throw new Error(`User preference class must be "any" or one of available classes: ${preferences.class}`)
+  }
+
+  if (!isAllowedValue(preferences.stage, validStages)) {
+    throw new Error(`User preference stage must be one of start, campaign, early_maps, endgame: ${preferences.stage}`)
+  }
+
+  if (!isAllowedValue(preferences.playStyle, validPlayStyles)) {
+    throw new Error(`User preference playStyle must be one of melee, ranged, spells, minions: ${preferences.playStyle}`)
+  }
+
+  if (!isAllowedValue(preferences.goal, validGoals)) {
+    throw new Error(`User preference goal must be one of balanced, bossing, clear_speed, survivability: ${preferences.goal}`)
+  }
+
+  if (!isAllowedValue(preferences.mode, validModes)) {
+    throw new Error(`User preference mode must be one of softcore, hardcore: ${preferences.mode}`)
+  }
+
+  if (!isAllowedValue(preferences.budget, validBudgets)) {
+    throw new Error(`User preference budget must be one of starter, low, medium, high: ${preferences.budget}`)
   }
 }
 
@@ -270,6 +423,7 @@ const roundToUiScore = (score: number): number =>
 const scoreBuild = (build: Build, preferences: UserPreferences): number => {
   const weights = goalWeights[preferences.goal]
   const stageScore = build.scoresByStage[preferences.stage]
+
   const weightedScore =
     (stageScore * weights.stage +
       build.bossingScore * weights.bossing +
@@ -277,6 +431,7 @@ const scoreBuild = (build: Build, preferences: UserPreferences): number => {
       build.survivabilityScore * weights.survivability +
       build.easeOfUseScore * weights.easeOfUse) /
     100
+
   return clampScore(weightedScore)
 }
 
@@ -290,9 +445,9 @@ const sortBuilds = (a: BuildWithScore, b: BuildWithScore): number => {
     return b.dataConfidence - a.dataConfidence
   }
 
-  const budgetGap = budgetOrder[a.minimumBudget] - budgetOrder[b.minimumBudget]
-  if (budgetGap !== 0) {
-    return budgetGap
+  const budgetDiff = budgetOrder[a.minimumBudget] - budgetOrder[b.minimumBudget]
+  if (budgetDiff !== 0) {
+    return budgetDiff
   }
 
   const reviewedAtDiff = new Date(b.lastReviewedAt).getTime() - new Date(a.lastReviewedAt).getTime()
@@ -300,7 +455,13 @@ const sortBuilds = (a: BuildWithScore, b: BuildWithScore): number => {
     return reviewedAtDiff
   }
 
-  return a.id.localeCompare(b.id)
+  if (a.id < b.id) {
+    return -1
+  }
+  if (a.id > b.id) {
+    return 1
+  }
+  return 0
 }
 
 const createNoMatchResult = (dataset: BuildDataset): NoMatchResult => ({
@@ -316,6 +477,7 @@ export const recommendBuilds = (
   preferences: UserPreferences,
 ): RecommendationResult => {
   validateBuildDataset(dataset)
+  validateUserPreferences(dataset, preferences)
 
   const filteredBuilds = dataset.builds.filter((build) => {
     if (preferences.class !== 'any' && build.class !== preferences.class) {
@@ -327,6 +489,7 @@ export const recommendBuilds = (
     if (!build.modes.includes(preferences.mode)) {
       return false
     }
+
     return budgetOrder[build.minimumBudget] <= budgetOrder[preferences.budget]
   })
 
@@ -346,15 +509,18 @@ export const recommendBuilds = (
     ...build,
     finalScore: roundToUiScore(build.finalScore),
   }))
+  const compatibleCount = scoredBuilds.length
+
+  const roundedPrimaryScore = roundToUiScore(primaryBuild.finalScore)
 
   return {
     type: 'match',
     primaryBuild: {
       ...primaryBuild,
-      finalScore: roundToUiScore(primaryBuild.finalScore),
+      finalScore: roundedPrimaryScore,
     },
-    score: roundToUiScore(primaryBuild.finalScore),
-    reason: 'Matched builds are ranked by goal-specific weighted score and tie-break rules.',
+    score: roundedPrimaryScore,
+    reason: `Winner build: ${primaryBuild.name} (${primaryBuild.id}); goal=${preferences.goal}; stage=${preferences.stage}; finalScore=${roundedPrimaryScore}; compatibleBuilds=${compatibleCount}`,
     path: primaryBuild.path,
     alternatives: displayedAlternatives,
     patch: dataset.targetPatch,
