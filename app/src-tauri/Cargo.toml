@@ -1,0 +1,11 @@
+[package]
+name = "poe2-build-advisor"
+version = "0.1.0"
+description = "PoE 2 Build Advisor desktop foundation."
+edition = "2021"
+
+[build-dependencies]
+tauri-build = "2"
+
+[dependencies]
+tauri = "2"
