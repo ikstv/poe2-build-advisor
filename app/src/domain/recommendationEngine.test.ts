@@ -466,14 +466,15 @@ describe('recommendBuilds tie-breaks', () => {
 
   it('returns reason for higher finalScore', () => {
     const dataset = makeDataset([
-      createBuild('zeta', { scoresByStage: { start: 90, campaign: 90, early_maps: 90, endgame: 90 } }),
-      createBuild('alpha', { scoresByStage: { start: 89.95, campaign: 89.95, early_maps: 89.95, endgame: 89.95 } }),
+      createBuild('zeta', { scoresByStage: { start: 91, campaign: 90, early_maps: 90, endgame: 90 } }),
+      createBuild('alpha', { scoresByStage: { start: 90, campaign: 89, early_maps: 89, endgame: 89 } }),
     ])
 
     const result = recommendBuilds(dataset, makePreferences({ class: 'any' })) as MatchResult
 
     expect(result.reason).toContain('higher finalScore')
-    expect(result.reason).not.toContain('stable id tie-break')
+    expect(result.reason).toContain('goal=balanced')
+    expect(result.reason).toContain('compatibleBuilds=2')
   })
 
   it('returns reason for higher dataConfidence', () => {
