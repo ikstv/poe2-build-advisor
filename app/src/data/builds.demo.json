@@ -1,0 +1,202 @@
+{
+  "targetPatch": "demo-patch-0.0.1",
+  "availableClasses": ["marauder", "ranger", "witch", "scion"],
+  "builds": [
+    {
+      "id": "demo-marauder-melee-01",
+      "name": "Demo Marauder Melee Starter",
+      "patch": "demo-patch-0.0.1",
+      "class": "marauder",
+      "ascendancy": null,
+      "playStyles": ["melee"],
+      "modes": ["softcore", "hardcore"],
+      "minimumBudget": "starter",
+      "scoresByStage": {
+        "start": 74,
+        "campaign": 69,
+        "early_maps": 63,
+        "endgame": 58
+      },
+      "bossingScore": 68,
+      "clearSpeedScore": 57,
+      "survivabilityScore": 82,
+      "easeOfUseScore": 73,
+      "dataConfidence": 70,
+      "lastReviewedAt": "2026-06-01",
+      "path": {
+        "start": {
+          "skills": ["Demo Melee Stance", "Demo Fortify Pulse"],
+          "passiveMilestones": ["Demo Life Wheel", "Demo Weapon Mastery"],
+          "gearMilestones": ["Demo Rustic Sash", "Demo Copper Ring"],
+          "upgradePriorities": ["Demo Flask slots", "Demo Life flask", "Demo Mobility gem"]
+        },
+        "campaign": {
+          "skills": ["Demo Weapon Cluster", "Demo Taunt Chain"],
+          "passiveMilestones": ["Demo Armor Cluster", "Demo Brute Path"],
+          "gearMilestones": ["Demo Boots Upgrade", "Demo Belt Upgrade"],
+          "upgradePriorities": ["Demo Resist balance", "Demo Movement", "Demo Jewel Slots"]
+        },
+        "early_maps": {
+          "skills": ["Demo Cleave Stack", "Demo Guard Reset"],
+          "passiveMilestones": ["Demo Endurance Progression", "Demo Fortify Range"],
+          "gearMilestones": ["Demo Rare Gloves", "Demo Rare Helmet"],
+          "upgradePriorities": ["Demo Map Awareness", "Demo Chaos Resist", "Demo Flask Quality"]
+        },
+        "endgame": {
+          "skills": ["Demo Heavy Slam", "Demo Ground Slam Variant"],
+          "passiveMilestones": ["Demo Aura Ring", "Demo Guard Core"],
+          "gearMilestones": ["Demo Two-Handed Blade", "Demo Belly Base"],
+          "upgradePriorities": ["Demo Endgame Flask", "Demo Belt Sockets", "Demo Build Ceiling Upgrade"]
+        }
+      },
+      "sources": ["demo-source"]
+    },
+    {
+      "id": "demo-ranger-ranged-02",
+      "name": "Demo Ranger Ranged Explorer",
+      "patch": "demo-patch-0.0.1",
+      "class": "ranger",
+      "ascendancy": null,
+      "playStyles": ["ranged"],
+      "modes": ["softcore"],
+      "minimumBudget": "low",
+      "scoresByStage": {
+        "start": 70,
+        "campaign": 72,
+        "early_maps": 78,
+        "endgame": 83
+      },
+      "bossingScore": 72,
+      "clearSpeedScore": 86,
+      "survivabilityScore": 62,
+      "easeOfUseScore": 76,
+      "dataConfidence": 78,
+      "lastReviewedAt": "2026-06-10T00:00:00Z",
+      "path": {
+        "start": {
+          "skills": ["Demo Quick Shot", "Demo Dash Shot"],
+          "passiveMilestones": ["Demo Accuracy", "Demo Bow Path"],
+          "gearMilestones": ["Demo Bow String", "Demo Leather Boots"],
+          "upgradePriorities": ["Demo Accuracy Gem", "Demo Early Flask", "Demo Flask Charges"]
+        },
+        "campaign": {
+          "skills": ["Demo Multi-shot", "Demo Pierce Setup"],
+          "passiveMilestones": ["Demo Evasion", "Demo Projectile Mastery"],
+          "gearMilestones": ["Demo Quiver Upgrade", "Demo Helmet Upgrade"],
+          "upgradePriorities": ["Demo Mana sustain", "Demo Aura stack", "Demo Flask Duration"]
+        },
+        "early_maps": {
+          "skills": ["Demo Rapid Volley", "Demo Exploit Weakness"],
+          "passiveMilestones": ["Demo Crit Balance", "Demo Map Movement"],
+          "gearMilestones": ["Demo Rare Gloves", "Demo Ring Upgrade"],
+          "upgradePriorities": ["Demo Attack Speed", "Demo Life pool", "Demo Gear Sockets"]
+        },
+        "endgame": {
+          "skills": ["Demo Barrage Loop", "Demo Precision Focus"],
+          "passiveMilestones": ["Demo Endgame Evasion", "Demo Jewel Path"],
+          "gearMilestones": ["Demo Rare Bow", "Demo Bow Flask"],
+          "upgradePriorities": ["Demo Map Clear", "Demo Survivability", "Demo Endgame Jewel"]
+        }
+      },
+      "sources": ["demo-source"]
+    },
+    {
+      "id": "demo-witch-spells-03",
+      "name": "Demo Witch Spells Demo",
+      "patch": "demo-patch-0.0.1",
+      "class": "witch",
+      "ascendancy": null,
+      "playStyles": ["spells"],
+      "modes": ["softcore", "hardcore"],
+      "minimumBudget": "medium",
+      "scoresByStage": {
+        "start": 64,
+        "campaign": 71,
+        "early_maps": 79,
+        "endgame": 88
+      },
+      "bossingScore": 84,
+      "clearSpeedScore": 74,
+      "survivabilityScore": 70,
+      "easeOfUseScore": 58,
+      "dataConfidence": 64,
+      "lastReviewedAt": "2026-06-15",
+      "path": {
+        "start": {
+          "skills": ["Demo Spark Bolt", "Demo Arc Form"],
+          "passiveMilestones": ["Demo Cast Speed", "Demo Mana Pool"],
+          "gearMilestones": ["Demo Wand", "Demo Spell Ring"],
+          "upgradePriorities": ["Demo First Flask", "Demo Movement skill", "Demo Mana Quality"]
+        },
+        "campaign": {
+          "skills": ["Demo Firestorm", "Demo Ice Wall"],
+          "passiveMilestones": ["Demo Aura Layer", "Demo Spell Damage Path"],
+          "gearMilestones": ["Demo Spell Wand", "Demo Ring Upgrades"],
+          "upgradePriorities": ["Demo Caster Helmet", "Demo Spell Crit", "Demo Life Flask"]
+        },
+        "early_maps": {
+          "skills": ["Demo Nova Loop", "Demo Chain Pulse"],
+          "passiveMilestones": ["Demo Mana Reserve", "Demo Caster Boots"],
+          "gearMilestones": ["Demo Rare Belt", "Demo Rare Gloves"],
+          "upgradePriorities": ["Demo Energy Shield", "Demo Resistance", "Demo Utility Jewels"]
+        },
+        "endgame": {
+          "skills": ["Demo Area Denial", "Demo Controlled Burst"],
+          "passiveMilestones": ["Demo Endgame Core", "Demo Spell Mastery"],
+          "gearMilestones": ["Demo Rare Spellbook", "Demo Rare Amulet"],
+          "upgradePriorities": ["Demo Boss Gear", "Demo Endgame Flask", "Demo Jewel Priority"]
+        }
+      },
+      "sources": ["demo-source"]
+    },
+    {
+      "id": "demo-scion-minions-04",
+      "name": "Demo Scion Minions Arena",
+      "patch": "demo-patch-0.0.1",
+      "class": "scion",
+      "ascendancy": null,
+      "playStyles": ["minions"],
+      "modes": ["hardcore"],
+      "minimumBudget": "high",
+      "scoresByStage": {
+        "start": 66,
+        "campaign": 69,
+        "early_maps": 75,
+        "endgame": 81
+      },
+      "bossingScore": 76,
+      "clearSpeedScore": 68,
+      "survivabilityScore": 88,
+      "easeOfUseScore": 54,
+      "dataConfidence": 72,
+      "lastReviewedAt": "2026-06-20T00:00:00Z",
+      "path": {
+        "start": {
+          "skills": ["Demo Summon Basics", "Demo Minion Guard"],
+          "passiveMilestones": ["Demo Summon Nodes", "Demo Life Nodes"],
+          "gearMilestones": ["Demo Wand", "Demo Early Robe"],
+          "upgradePriorities": ["Demo Mana Flask", "Demo Minion Survival", "Demo Early Boots"]
+        },
+        "campaign": {
+          "skills": ["Demo Raise Horde", "Demo Command Spirit"],
+          "passiveMilestones": ["Demo Aura Layer", "Demo Totem Balance"],
+          "gearMilestones": ["Demo Minion Weapon", "Demo Belt"],
+          "upgradePriorities": ["Demo Minion Quantity", "Demo Resilience", "Demo Ring Upgrades"]
+        },
+        "early_maps": {
+          "skills": ["Demo Siege Spirits", "Demo Minion Aura"],
+          "passiveMilestones": ["Demo Endurance Path", "Demo Minion Health"],
+          "gearMilestones": ["Demo Rare Helmet", "Demo Rare Ring"],
+          "upgradePriorities": ["Demo Minion Damage", "Demo Map Clear", "Demo Life Flask"]
+        },
+        "endgame": {
+          "skills": ["Demo Horde Command", "Demo Territory Ward"],
+          "passiveMilestones": ["Demo Endgame Defense", "Demo Summon Mastery"],
+          "gearMilestones": ["Demo Elite Helm", "Demo Elite Body Armour"],
+          "upgradePriorities": ["Demo Boss Setup", "Demo Cluster Jewels", "Demo Movement Safety"]
+        }
+      },
+      "sources": ["demo-source"]
+    }
+  ]
+}

@@ -299,21 +299,23 @@ const getDecisionReason = (
   return `Primary build ${primary.id} was selected over ${alternate.id} by stable id tie-break (${primary.id} < ${alternate.id}) for ${sharedContext}`
 }
 
-export const validateBuildDataset = (dataset: BuildDataset): void => {
-  if (!dataset || typeof dataset !== 'object') {
+export const validateBuildDataset = (dataset: unknown): void => {
+  if (!isObject(dataset)) {
     throw new Error('Dataset must be an object')
   }
 
-  if (typeof dataset.targetPatch !== 'string' || dataset.targetPatch.trim() === '') {
+  const typedDataset = dataset as unknown as BuildDataset
+
+  if (typeof typedDataset.targetPatch !== 'string' || typedDataset.targetPatch.trim() === '') {
     throw new Error('Dataset targetPatch must be a non-empty string')
   }
 
-  if (!Array.isArray(dataset.availableClasses) || dataset.availableClasses.length === 0) {
+  if (!Array.isArray(typedDataset.availableClasses) || typedDataset.availableClasses.length === 0) {
     throw new Error('Dataset availableClasses must be a non-empty array')
   }
 
   const uniqueClasses = new Set<string>()
-  for (const className of dataset.availableClasses) {
+  for (const className of typedDataset.availableClasses) {
     if (!isNonEmptyString(className)) {
       throw new Error('Dataset availableClasses must contain non-empty strings')
     }
@@ -323,13 +325,13 @@ export const validateBuildDataset = (dataset: BuildDataset): void => {
     uniqueClasses.add(className)
   }
 
-  if (!Array.isArray(dataset.builds)) {
+  if (!Array.isArray(typedDataset.builds)) {
     throw new Error('Dataset builds must be an array')
   }
 
   const ids = new Set<string>()
 
-  for (const build of dataset.builds) {
+  for (const build of typedDataset.builds) {
     if (!isObject(build)) {
       throw new Error('Each build must be a non-null object')
     }
@@ -351,7 +353,7 @@ export const validateBuildDataset = (dataset: BuildDataset): void => {
       throw new Error(`Build patch must be a non-empty string: ${build.id}`)
     }
 
-    if (build.patch !== dataset.targetPatch) {
+    if (build.patch !== typedDataset.targetPatch) {
       throw new Error(`Build patch mismatch: ${build.id}`)
     }
 
