@@ -299,23 +299,21 @@ const getDecisionReason = (
   return `Primary build ${primary.id} was selected over ${alternate.id} by stable id tie-break (${primary.id} < ${alternate.id}) for ${sharedContext}`
 }
 
-export const validateBuildDataset = (dataset: unknown): void => {
+export function validateBuildDataset(dataset: unknown): asserts dataset is BuildDataset {
   if (!isObject(dataset)) {
     throw new Error('Dataset must be an object')
   }
 
-  const typedDataset = dataset as unknown as BuildDataset
-
-  if (typeof typedDataset.targetPatch !== 'string' || typedDataset.targetPatch.trim() === '') {
+  if (!isNonEmptyString(dataset.targetPatch)) {
     throw new Error('Dataset targetPatch must be a non-empty string')
   }
 
-  if (!Array.isArray(typedDataset.availableClasses) || typedDataset.availableClasses.length === 0) {
+  if (!Array.isArray(dataset.availableClasses) || dataset.availableClasses.length === 0) {
     throw new Error('Dataset availableClasses must be a non-empty array')
   }
 
   const uniqueClasses = new Set<string>()
-  for (const className of typedDataset.availableClasses) {
+  for (const className of dataset.availableClasses) {
     if (!isNonEmptyString(className)) {
       throw new Error('Dataset availableClasses must contain non-empty strings')
     }
@@ -325,13 +323,13 @@ export const validateBuildDataset = (dataset: unknown): void => {
     uniqueClasses.add(className)
   }
 
-  if (!Array.isArray(typedDataset.builds)) {
+  if (!Array.isArray(dataset.builds)) {
     throw new Error('Dataset builds must be an array')
   }
 
   const ids = new Set<string>()
 
-  for (const build of typedDataset.builds) {
+  for (const build of dataset.builds) {
     if (!isObject(build)) {
       throw new Error('Each build must be a non-null object')
     }
@@ -349,11 +347,11 @@ export const validateBuildDataset = (dataset: unknown): void => {
       throw new Error(`Build ascendancy must be a string or null: ${build.id}`)
     }
 
-    if (typeof build.patch !== 'string' || build.patch.trim() === '') {
+    if (!isNonEmptyString(build.patch)) {
       throw new Error(`Build patch must be a non-empty string: ${build.id}`)
     }
 
-    if (build.patch !== typedDataset.targetPatch) {
+    if (build.patch !== dataset.targetPatch) {
       throw new Error(`Build patch mismatch: ${build.id}`)
     }
 
@@ -377,7 +375,7 @@ export const validateBuildDataset = (dataset: unknown): void => {
       throw new Error(`Build playStyles must be a non-empty array: ${build.id}`)
     }
 
-    if (build.playStyles.some((style) => !isAllowedValue(style, validPlayStyles))) {
+    if (!build.playStyles.every((style) => isAllowedValue(style, validPlayStyles))) {
       throw new Error(`Build playStyles must contain only valid values: ${build.id}`)
     }
 
@@ -385,44 +383,44 @@ export const validateBuildDataset = (dataset: unknown): void => {
       throw new Error(`Build modes must be a non-empty array: ${build.id}`)
     }
 
-    if (build.modes.some((mode) => !isAllowedValue(mode, validModes))) {
+    if (!build.modes.every((mode) => isAllowedValue(mode, validModes))) {
       throw new Error(`Build modes must contain only valid values: ${build.id}`)
     }
 
-    if (!Object.hasOwn(budgetOrder, build.minimumBudget)) {
+    if (!isAllowedValue(build.minimumBudget, validBudgets)) {
       throw new Error(`Build minimumBudget must be one of starter, low, medium, high: ${build.id}`)
     }
 
-    if (typeof build.path !== 'object' || build.path === null) {
+    if (!isObject(build.path)) {
       throw new Error(`Build path must be an object: ${build.id}`)
     }
 
     for (const stage of requiredPathStages) {
       const plan = build.path[stage]
-      if (!plan) {
+      if (!isObject(plan)) {
         throw new Error(`Build path must include stage ${stage}: ${build.id}`)
       }
-      if (!Array.isArray(plan.skills) || plan.skills.some((skill) => typeof skill !== 'string')) {
+      if (!Array.isArray(plan.skills) || !plan.skills.every((skill) => isNonEmptyString(skill))) {
         throw new Error(`Build path ${stage}.skills must be an array of strings: ${build.id}`)
       }
       if (
         !Array.isArray(plan.passiveMilestones) ||
-        plan.passiveMilestones.some((skill) => typeof skill !== 'string')
+        !plan.passiveMilestones.every((skill) => isNonEmptyString(skill))
       ) {
         throw new Error(`Build path ${stage}.passiveMilestones must be an array of strings: ${build.id}`)
       }
-      if (!Array.isArray(plan.gearMilestones) || plan.gearMilestones.some((skill) => typeof skill !== 'string')) {
+      if (!Array.isArray(plan.gearMilestones) || !plan.gearMilestones.every((skill) => isNonEmptyString(skill))) {
         throw new Error(`Build path ${stage}.gearMilestones must be an array of strings: ${build.id}`)
       }
       if (
         !Array.isArray(plan.upgradePriorities) ||
-        plan.upgradePriorities.some((skill) => typeof skill !== 'string')
+        !plan.upgradePriorities.every((skill) => isNonEmptyString(skill))
       ) {
         throw new Error(`Build path ${stage}.upgradePriorities must be an array of strings: ${build.id}`)
       }
     }
 
-    if (typeof build.scoresByStage !== 'object' || build.scoresByStage === null) {
+    if (!isObject(build.scoresByStage)) {
       throw new Error(`Build scoresByStage must be an object: ${build.id}`)
     }
 

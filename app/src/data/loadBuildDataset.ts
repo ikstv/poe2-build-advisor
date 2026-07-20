@@ -1,12 +1,12 @@
 import demoBuilds from './builds.demo.json'
-import { BuildDataset, validateBuildDataset } from '../domain/recommendationEngine'
+import type { BuildDataset } from '../domain/recommendationEngine'
+import { validateBuildDataset } from '../domain/recommendationEngine'
 
 export const loadBuildDatasetFromUnknown = (dataset: unknown): BuildDataset => {
-  const typedDataset = dataset as BuildDataset
-  validateBuildDataset(typedDataset)
-  return typedDataset
+  validateBuildDataset(dataset)
+  return dataset
 }
 
 export const loadBuildDataset = (): BuildDataset => {
-  return loadBuildDatasetFromUnknown(demoBuilds as unknown)
+  return loadBuildDatasetFromUnknown(demoBuilds)
 }
